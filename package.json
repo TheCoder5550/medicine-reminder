@@ -1,0 +1,35 @@
+{
+  "name": "medicine-reminder",
+  "version": "1.0.0",
+  "description": "Automatically add reminders to Google Calendar for when medicine expires by scanning the data matrix",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheCoder5550/medicine-reminder.git"
+  },
+  "keywords": [
+    "medicine",
+    "reminder",
+    "calendar",
+    "matrix",
+    "scanner"
+  ],
+  "author": "Alfons Nilsson",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TheCoder5550/medicine-reminder/issues"
+  },
+  "homepage": "https://github.com/TheCoder5550/medicine-reminder#readme",
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
