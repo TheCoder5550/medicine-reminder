@@ -6,11 +6,11 @@
   <title>Medicine reminder</title>
 </head>
 <body>
-  <div id="tap-to-start" class="status-container">
+  <div id="tap-to-start" class="fullscreen-center">
     <span>Tap to start camera</span>
   </div>
 
-  <div id="loader" class="status-container hidden">
+  <div id="loader" class="fullscreen-center hidden">
     <div class="spinner"></div>
   </div>
 
@@ -29,5 +29,15 @@
   </div>
 
   <canvas id="canvas"></canvas>
+
+  <div id="login-screen" class="fullscreen-center">
+    <h2>Sign in</h2>
+    <div>
+      <button id="authorize_button">Authorize</button>
+      <button id="signout_button">Sign Out</button>
+    </div>
+
+    <pre id="content" style="white-space: pre-wrap;"></pre>
+  </div>
 </body>
 </html>

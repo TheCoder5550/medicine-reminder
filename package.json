@@ -36,6 +36,7 @@
     "webpack-dev-server": "^5.2.2"
   },
   "dependencies": {
-    "@zxing/browser": "^0.1.5"
+    "@zxing/browser": "^0.1.5",
+    "dotenv": "^17.2.1"
   }
 }
