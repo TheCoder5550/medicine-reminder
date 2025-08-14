@@ -2,12 +2,11 @@
   "name": "medicine-reminder",
   "version": "1.0.0",
   "description": "Automatically add reminders to Google Calendar for when medicine expires by scanning the data matrix",
-  "main": "index.js",
-  "type": "module",
+  "private": "true",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "dev": "nodemon"
+    "build": "webpack",
+    "dev": "webpack serve --open"
   },
   "repository": {
     "type": "git",
@@ -27,9 +26,16 @@
   },
   "homepage": "https://github.com/TheCoder5550/medicine-reminder#readme",
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "css-loader": "^7.1.2",
+    "eslint": "^9.33.0",
+    "html-webpack-plugin": "^5.6.3",
+    "nodemon": "^3.1.10",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.101.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "@zxing/browser": "^0.1.5"
   }
 }

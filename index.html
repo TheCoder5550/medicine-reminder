@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medicine reminder</title>
+</head>
+<body>
+  <div id="tap-to-start" class="status-container">
+    <span>Tap to start camera</span>
+  </div>
+
+  <div id="loader" class="status-container hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="video-container hidden">
+    <video playsinline autoplay id="video"></video>
+    <div class="scan-frame">
+      <div class="corner"></div>
+      <div class="corner"></div>
+      <div class="corner"></div>
+      <div class="corner"></div>
+    </div>
+
+    <div class="result-container">
+      <span id="result">Waiting for result...</span>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+</body>
+</html>
