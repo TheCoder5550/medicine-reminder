@@ -6,12 +6,8 @@
   <title>Medicine reminder</title>
 </head>
 <body>
-  <div id="tap-to-start" class="fullscreen-center">
+  <div id="tap-to-start" class="fullscreen-center hidden">
     <span>Tap to start camera</span>
-  </div>
-
-  <div id="loader" class="fullscreen-center hidden">
-    <div class="spinner"></div>
   </div>
 
   <div class="video-container hidden">
@@ -30,14 +26,19 @@
 
   <canvas id="canvas"></canvas>
 
-  <div id="login-screen" class="fullscreen-center">
-    <h2>Sign in</h2>
-    <div>
-      <button id="authorize_button">Authorize</button>
-      <button id="signout_button">Sign Out</button>
-    </div>
+  <div id="login-screen" class="fullscreen-center hidden">
+    <h2>Sync to your calendar</h2>
+    <p>Sign in with Google to add your reminders to your Google Calendar.</p>
+    <button id="authorize_button">Authorize</button>
+    <button id="signout_button">Sign Out</button>
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
   </div>
+
+  <div id="loader" class="fullscreen-center hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <div id="toast-container"></div>
 </body>
 </html>

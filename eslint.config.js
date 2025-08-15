@@ -4,7 +4,7 @@ import js from "@eslint/js";
 
 export default defineConfig([
 	{
-		files: ["**/*.js"],
+		files: ["**/*.js", "**/*.mjs"],
 		languageOptions: {
 			globals: {
 				...globals.browser,
@@ -13,7 +13,7 @@ export default defineConfig([
 		}
 	},
 	{
-		files: ["**/*.js"],
+		files: ["**/*.js", "**/*.mjs"],
 		plugins: {
 			js
 		},
