@@ -10,7 +10,9 @@ module.exports = {
   devtool: 'inline-source-map',
   devServer: {
     static: './dist',
-    server: "https"
+    // Make ngrok work
+    allowedHosts: 'all'
+    // server: "https"
   },
   optimization: {
     runtimeChunk: 'single',
