@@ -1,18 +1,24 @@
 import "../style.css";
 import { BrowserDatamatrixCodeReader } from '@zxing/browser';
-import { AddToast } from "./toast.mjs";
-import { getFullYear, hideElement, showElement } from "./helper.mjs";
+import { AddToast, editToast } from "./toast.mjs";
+import { getFullYear, hideElement, showElement, stringifyError } from "./helper.mjs";
 import { decodeMedicineData } from "./medicine-decoding.mjs";
 import { GoogleCalendarHandler } from "./google-api.mjs";
+import { showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+
+const welcomeScreen = document.querySelector("#welcome-screen");
+
+const cameraRequestScreen = document.querySelector("#camera-request-screen");
+const previewVideo = cameraRequestScreen.querySelector('.preview-video');
+const requestCameraButton = cameraRequestScreen.querySelector(".request-button");
 
 const loginScreen = document.querySelector("#login-screen");
-const tapToStart = document.querySelector("#tap-to-start");
-const loader = document.querySelector("#loader");
-const videoContainer = document.querySelector(".video-container");
+const scannerScreen = document.querySelector("#scanner-screen");
+const loaderScreen = document.querySelector("#loader");
 
 const resultLabel = document.querySelector("#result");
-const video = document.querySelector('video');
-const canvas = document.querySelector("canvas");
+const video = document.querySelector('#video');
+const canvas = document.querySelector("#canvas");
 const ctx = canvas.getContext("2d", {
   willReadFrequently: true
 });
@@ -20,33 +26,199 @@ const ctx = canvas.getContext("2d", {
 canvas.width = 256;
 canvas.height = 256;
 
-const scale = 0.15;
+let scale = 0.15;
 const extraBrightness = 0;
 const contrastFactor = 2;
 
 const codeReader = new BrowserDatamatrixCodeReader();
-let hasStarted = false;
+let hasStartedCamera = false;
+let renderFrameTimeout = null;
 let timeout = null;
-let lastScanSN = null;
+let lastScan = null;
 
 const googleCalendar = new GoogleCalendarHandler();
 await googleCalendar.init();
-googleCalendar.makeSignOutButton(document.querySelector("#signout_button"));
+
 document.querySelector("#authorize_button").addEventListener("click", async () => {
-  showElement(loader);
+  showElement(loaderScreen);
 
-  await googleCalendar.authorize();
-
-  hideElement(loginScreen);
-  startScanner();
+  googleCalendar.authorize()
+    .then(() => {
+      startScanner();
+    })
+    .catch(() => {
+      hideElement(loaderScreen);
+      showLoginSingle();
+    })
 });
-showElement(loginScreen);
+
+hideElement(document.querySelector("#signout_button"));
+document.querySelector("#signout_button").addEventListener("click", () => {
+  googleCalendar.signOut();
+});
+
+console.log("Onboard?")
+
+if (!localStorage.getItem("onboarding-done")) {
+  showSlideInstant(0);
+}
+else {
+  if (googleCalendar.hasAuthorizedBefore()) {
+    document.querySelector("#authorize_button").click();
+  }
+  else {
+    showLoginSingle();
+  }
+}
+
+welcomeScreen.querySelector(".continue-button").addEventListener("click", () => {
+  showNextSlide();
+});
+cameraRequestScreen.querySelector(".skip-button").addEventListener("click", () => {
+  showNextSlide();
+});
+cameraRequestScreen.querySelector(".continue-button").addEventListener("click", () => {
+  showNextSlide();
+});
+loginScreen.querySelector(".skip-button").addEventListener("click", () => {
+  AddToast("No calendar", "No reminders will be created since no calendar has been connected", "error");
+  onboardDone();
+});
+
+cameraRequestScreen.querySelector(".back-button").addEventListener("click", () => {
+  showPrevSlide();
+});
+loginScreen.querySelector(".back-button").addEventListener("click", () => {
+  showPrevSlide();
+});
+
+function onboardDone() {
+  localStorage.setItem("onboarding-done", true);
+  showSlideInstant(null);
+  startScanner();
+}
+
+requestCameraButton.addEventListener("click", () => {
+  requestCameraButton.disabled = true;
+
+  navigator.permissions.query({name: 'camera'})
+    .then(async function(result) {
+      if (result.state == 'granted') {
+        showPreview();
+      }
+      else if (result.state == 'prompt') {
+        showPreview();
+      }
+      else if (result.state == 'denied') {
+        showCameraError();
+      }
+
+      // result.onchange = function() {
+      //   console.log(result.state);
+      //   if (result.state == "granted") {
+      //     next();
+      //   }
+      //   else if (result.state == "denied") {
+      //     showCameraError();
+      //   }
+
+      //   result.onchange = () => {};
+      // }
+    });
+
+  function showPreview() {
+    startCamera()
+      .then(() => {
+        hideElement(requestCameraButton);
+        showElement(cameraRequestScreen.querySelector(".continue-button"));
+      })
+      .catch(showCameraError)
+      .finally(() => {
+        requestCameraButton.disabled = false;
+      })
+  }
+});
+
+// function showCameraRequestScreen() {
+//   const show = () => {
+//     showElement(cameraRequestScreen);
+//     cameraRequestScreen.classList.add("slide-in");
+//   }
+
+//   if (!navigator.permissions || !navigator.permissions.query) {
+//     show();
+//     return;
+//   }
+
+//   navigator.permissions.query({name: 'camera'})
+//     .then(async function(result) {
+//       if (result.state == 'granted') {
+//         cameraRequestScreen.querySelector(".skip-button").click();
+//       }
+//       else {
+//         show();
+//       }
+//     })
+//     .catch(showCameraError);
+// }
+
+function showLoginSingle() {
+  showSlideInstant(loginScreen);
+  hideElement(loginScreen.querySelector(".back-button"));
+}
+
+scannerScreen.addEventListener("click", () => {
+  scale = scale === 0.15 ? 0.3 : 0.15;
+  scannerScreen.querySelector(".scan-frame").style.width = `${scale * 100}%`;
+
+  video.play();
+})
+
+video.addEventListener("play", () => {
+  const videoContainer = scannerScreen.querySelector(".video-container");
+  const aspect = video.videoWidth / video.videoHeight;
+  videoContainer.style.aspect = aspect;
+  videoContainer.style.width = `max(100vw, 100vh * ${aspect})`;
+
+  clearTimeout(renderFrameTimeout);
+  renderFrame();
+});
+
+function renderFrame() {
+  renderVideoToCanvas(video, canvas, ctx);
+  scanCanvas();
+
+  renderFrameTimeout = setTimeout(renderFrame, 100);
+}
 
 async function startScanner() {
-  if (hasStarted) {
-    return;
+  hideElement(welcomeScreen);
+  hideElement(cameraRequestScreen);
+  hideElement(loginScreen);
+
+  showElement(scannerScreen);
+  showElement(loaderScreen);
+  
+  clearTimeout(renderFrameTimeout);
+
+  startCamera()
+    .then(() => {
+      renderFrame();
+
+      hideElement(loaderScreen);
+      showElement(scannerScreen);
+    })
+    .catch(e => {
+      AddToast("Error", stringifyError(e), "error");
+      showCameraError(e);
+    });
+}
+
+async function startCamera() {
+  if (hasStartedCamera) {
+    return false;
   }
-  hasStarted = true;
+  hasStartedCamera = true;
 
   const constraints = {
     audio: false,
@@ -56,47 +228,54 @@ async function startScanner() {
   };
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  previewVideo.srcObject = stream;
   video.srcObject = stream;
-
-  showElement(videoContainer);
-
-  video.addEventListener("play", () => {
-    hideElement(loader);
-    renderFrame();
-  });
-
-  function renderFrame() {
-    renderVideoToCanvas(video, canvas, ctx);
-    scanCanvas();
-
-    setTimeout(renderFrame, 100);
-  }
+  video.onloadedmetadata = () => {
+    video.play();
+  };
+  
+  return true;
 }
 
 function scanCanvas() {
   try {
     const result = codeReader.decodeFromCanvas(canvas);
     const resultText = result.getText();
-    const data = decodeMedicineData(resultText);
-    const expLabel = data.EXP.month + "/" + getFullYear(data.EXP.year);
-    resultLabel.textContent = "EXP: " + expLabel + " - " + resultText;
-
+    resultLabel.textContent = resultText;
+    
     clearTimeout(timeout);
     timeout = setTimeout(() => {
+      lastScan = null;
       resultLabel.textContent = "";
     }, 5000);
 
-    if (lastScanSN != null && lastScanSN === data.SN) {
+    if (lastScan != null && lastScan === resultText) {
       return;
     }
-    lastScanSN = data.SN;
+    lastScan = resultText;
+    
+    const data = decodeMedicineData(resultText);
+    if (data.PC == null) {
+      AddToast("Invalid data matrix", resultText, "error", 5000);
+      return;
+    }
+
+    const toast = AddToast("Creating reminder", "", "buffer", -1);
 
     googleCalendar.createReminder(data)
       .then(() => {
-        AddToast("Reminder created", "Expires " + expLabel, "success", -1);
+        const expLabel = data.EXP.month + "/" + getFullYear(data.EXP.year);
+        editToast(toast, "Reminder created", "Expires " + expLabel, "success", 5000);
       })
       .catch(e => {
-        AddToast("Error creating reminder!", e, "error", -1);
+        const errorMessage = stringifyError(e);
+        if (errorMessage === "Already exists") {
+          editToast(toast, "Reminder has already been created", "", "info", 5000);
+        }
+        else {
+          editToast(toast, "Error creating reminder!", stringifyError(e), "error", 5000);
+        }
+        console.error(e);
       });
   }
   catch { /* empty */ }
@@ -108,6 +287,8 @@ function scanCanvas() {
  * @param {CanvasRenderingContext2D} ctx 
  */
 function renderVideoToCanvas(video, canvas, ctx) {
+  // scale = scale == 0.15 ? 0.3 : 0.15;
+
   const aspect = video.videoWidth / video.videoHeight;
   ctx.drawImage(
     video,
@@ -159,4 +340,13 @@ function renderVideoToCanvas(video, canvas, ctx) {
   }
 
   ctx.putImageData(imageData, 0, 0);
+}
+
+function showCameraError(error) {
+  const errorScreen = document.querySelector("#camera-error");
+  errorScreen.querySelector(".error-label").textContent = stringifyError(error);
+  showElement(errorScreen);
+
+  hideElement(loaderScreen);
+  hideElement(scannerScreen);
 }

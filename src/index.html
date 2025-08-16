@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1">
+  <title><%= htmlWebpackPlugin.options.title %></title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+</head>
+<body>
+  <!-- Welcome page -->
+  <div id="welcome-screen" class="fullscreen-center hidden">
+    <h2>Medicine reminder</h2>
+    <p>Automatically add reminders to Google Calendar for when medicine expires by scanning the data matrix</p>
+    <button class="continue-button theme-button">Continue</button>
+  </div>
+
+  <!-- Request camera permission page -->
+  <div id="camera-request-screen" class="fullscreen-center hidden">
+    <h2>Permissions</h2>
+    <p>Allow camera permissions to use the scanner.</p>
+    <video playsinline autoplay muted class="preview-video"></video>
+    <button class="request-button theme-button">Allow camera</button>
+    <button class="continue-button theme-button hidden">Continue</button>
+
+    <button class="secondary-button skip-button">Skip</button>
+    <button class="secondary-button back-button">Back</button>
+  </div>
+
+  <!-- Login page -->
+  <div id="login-screen" class="fullscreen-center hidden">
+    <img width="200" src="<%= require('./assets/calendar.svg') %>"></img>
+    <h2>Sync your calendar</h2>
+    <p>Sign in with Google to add your reminders to your Google Calendar.</p>
+    <button id="authorize_button" class="theme-button">Sign in with Google</button>
+    <button id="signout_button" class="primary-button">Sign Out</button>
+
+    <button class="secondary-button skip-button">Skip</button>
+    <button class="secondary-button back-button">Back</button>
+  </div>
+
+  <!-- Scanner -->
+  <div id="scanner-screen" class="fullscreen-center hidden">
+    <div class="video-container">
+      <video playsinline autoplay muted id="video"></video>
+      <div class="scan-frame">
+        <div class="corner"></div>
+        <div class="corner"></div>
+        <div class="corner"></div>
+        <div class="corner"></div>
+      </div>
+    </div>
+
+    <div class="result-container">
+      <span id="result"></span>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <!-- Camera error -->
+  <div id="camera-error" class="fullscreen-center hidden">
+    <img width="100" src="<%= require('./assets/camera.svg') %>"></img>
+    <h2>Camera error</h2>
+    <p>Could not start scanner. Make sure you have given permission to use the camera.</p>
+    <p class="error-label"></p>
+
+    <button onclick="window.location.reload()" class="primary-button">Reload page</button>
+  </div>
+
+  <!-- Loader -->
+  <div id="loader" class="fullscreen-center hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast-container"></div>
+
+  <!-- <script src="https://aaserver.net/libraries/fakeConsole/fakeConsole-4.0.js"></script> -->
+</body>
+</html>

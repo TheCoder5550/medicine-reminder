@@ -1,3 +1,19 @@
+export function stringifyError(e) {
+  if (e instanceof Error) {
+    return e.message ?? e.toString();
+  }
+
+  if (typeof e === "string") {
+    return e;
+  }
+
+  if (typeof e === "object" && e.result) {
+    return e.result.error.message;
+  }
+
+  return JSON.stringify(e);
+}
+
 /**
  * Convert 'yy' to 'yyyy'
  * @param {string} year 
@@ -39,6 +55,19 @@ export function hideElement(element) {
  */
 export function showElement(element) {
   element.classList.remove("hidden");
+}
+
+/**
+ * Set element visibility (display)
+ * @param {HTMLElement} element 
+ */
+export function setHidden(element, isHidden) {
+  if (isHidden) {
+    hideElement(element);
+  }
+  else {
+    showElement(element);
+  }
 }
 
 /**

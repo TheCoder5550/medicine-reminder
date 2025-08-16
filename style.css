@@ -1,5 +1,9 @@
 * {
   box-sizing: border-box;
+ 
+  font-family: "Inter", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
 }
 
 body {
@@ -13,6 +17,12 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   color: white;
+  margin: 0;
+}
+
+p {
+  font-size: 1rem;
+  margin: 0;
 }
 
 button {
@@ -20,11 +30,47 @@ button {
   cursor: pointer;
   background: white;
   color: rgb(26, 26, 26);
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 1rem;
   font-weight: bold;
 
-  padding: 0.5em 1em;
+  padding: 0.75em 3em;
+}
+
+.theme-button {
+  background: rgb(25, 96, 189);
+  color: white;
+}
+
+.theme-button:not(:disabled):hover {
+  background: rgb(37, 85, 148);
+}
+
+.secondary-button {
+  padding: 0.5em;
+  background: none;
+  text-decoration: underline;
+  color: white;
+}
+
+.secondary-button:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.skip-button {
+  position: absolute;
+  bottom: 2rem;
+}
+
+.back-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
 }
 
 .hidden {
@@ -57,23 +103,47 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   padding: 1rem;
 
   background: inherit;
   z-index: 10;
   font-size: 1.5rem;
+  box-shadow: 0 0 4rem rgb(0, 0, 0, 0.5);
+}
+
+.fullscreen-center.slide-in {
+  animation: slide-in 500ms;
+}
+
+#login-screen {
+  padding-bottom: 15vh;
+}
+
+#camera-error .primary-button {
+  margin-top: 4rem;
+}
+
+#camera-request-screen .preview-video {
+  width: 50%;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/*
+  Scanner
+*/
+
+#scanner-screen {
+  overflow: hidden;
 }
 
 .video-container {
-  position: fixed;
-  inset: 0;
+  position: relative;
 
   display: flex;
   justify-content: center;
   align-items: center;
-
-  overflow: hidden;
-  background: black;
 }
 
 .scan-frame {
@@ -81,7 +151,7 @@ button {
   width: 15%;
   aspect-ratio: 1 / 1;
   /* border: 1px solid orange; */
-  border-color: rgba(255, 100, 0, 0.5);
+  border-color: rgba(255, 145, 71, 0.75);
 }
 
 .scan-frame .corner {
@@ -120,7 +190,9 @@ button {
 }
 
 #canvas {
-  /* display: none; */
+  display: none;
+  z-index: 10;
+
   position: absolute;
   bottom: 0;
   left: 0;
@@ -129,11 +201,12 @@ button {
 
 .result-container {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   right: 0;
+  padding: 0.25em;
 
-  font-size: 2rem;
+  font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.5);
   color: black;
 }
@@ -141,6 +214,10 @@ button {
 #result {
   word-break: break-all;
 }
+
+/*
+  Toasts
+*/
 
 #toast-container {
   position: fixed;
@@ -173,13 +250,16 @@ button {
 
 #toast-container .toast.error {
   background: rgb(255, 232, 232);
-  border-color: currentColor;
+  border-color: rgb(221, 88, 88);
 }
 
 #toast-container .toast.success {
   background: rgb(224, 255, 222);
   border-color: rgb(71, 143, 71);
 }
+
+/* #toast-container .toast.buffer {
+} */
 
 #toast-container .toast .title {
   font-weight: bold;

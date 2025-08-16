@@ -1,4 +1,4 @@
-import { getFullYear, hideElement, makeInvisible, makeVisible, showElement } from "./helper.mjs";
+import { getFullYear, stringifyError } from "./helper.mjs";
 import { AddToast } from "./toast.mjs";
 
 // Discovery doc URL for APIs used by the quickstart
@@ -21,48 +21,62 @@ export function GoogleCalendarHandler() {
   let gapiInited = false;
   let gisInited = false;
 
+  this.hasAuthorizedBefore = function() {
+    const storedToken = localStorage.getItem(tokenStorageLocation);
+    if (!storedToken) {
+      return false;
+    }
+
+    try {
+      const token = JSON.parse(storedToken).access_token;
+      return !!token;
+    }
+    catch {
+      return false;
+    }
+  }
+
   this.authorize = function() {
     return new Promise((resolve, reject) => {
-      const onAuthDoneWrapper = async (iteration) => {
+      const onAuthDoneWrapper = async () => {
         getCalendarId()
           .then(id => {
             this.calendarId = id;
-            AddToast("Found calendar", this.calendarId, "success");
-
             isAuthed = true;
-            // makeVisible(signOutButton);
-            // authButton.innerText = 'Refresh';
-      
-            AddToast("Auth done");
             resolve();
           })
           .catch((e) => {
-            AddToast("Auth failed", e, "error", -1);
-            console.error(e);
-
-            // showElement(loginScreen);
             localStorage.removeItem(tokenStorageLocation);
 
-            if (iteration >= 1) {
-              AddToast("Auth failed - Will not retry", e, "error", -1);
-              console.error(e);
-              reject(e);
-              return;
+            // Invalid token
+            if (e.status == 401) {
+              AddToast("Session expired. Sign in again");
+            }
+            else {
+              AddToast("Authorization failed", stringifyError(e), "error");
             }
 
-            handleAuthClick(iteration + 1);
+            console.error(e);
+            reject(e);
           });
       }
 
-      const handleAuthClick = async (iteration) => {
+      const handleAuthClick = async () => {
         const storedToken = localStorage.getItem(tokenStorageLocation);
         if (storedToken) {
-          window.gapi.client.setToken({
-            access_token: JSON.parse(storedToken).access_token
-          });
+          try {
+            const token = JSON.parse(storedToken).access_token;
 
-          await onAuthDoneWrapper(iteration);
-          return;
+            window.gapi.client.setToken({
+              access_token: token
+            });
+
+            await onAuthDoneWrapper();
+            return;
+          }
+          catch (e) {
+            AddToast("Error", stringifyError(e), "error");
+          }
         }
 
         this.tokenClient.callback = async (resp) => {
@@ -72,11 +86,12 @@ export function GoogleCalendarHandler() {
 
           const tokenData = window.gapi.client.getToken();
           localStorage.setItem(tokenStorageLocation, JSON.stringify(tokenData));
+          localStorage.setItem("consent-done", "true");
 
-          await onAuthDoneWrapper(iteration);
+          await onAuthDoneWrapper();
         };
         
-        if (window.gapi.client.getToken() === null) {
+        if (window.gapi.client.getToken() === null && localStorage.getItem("consent-done") !== "true") {
           // Prompt the user to select a Google Account and ask for consent to share their data
           // when establishing a new session.
           this.tokenClient.requestAccessToken({prompt: 'consent'});
@@ -86,25 +101,20 @@ export function GoogleCalendarHandler() {
         }
       }
 
-      handleAuthClick(0);
+      handleAuthClick();
     })
   }
 
-  this.makeSignOutButton = function(button) {
-    button.addEventListener(button, () => {
-      if (!this.isReady()) {
-        return;
-      }
+  this.signOut = function() {
+    if (!this.isReady()) {
+      return;
+    }
 
-      const token = window.gapi.client.getToken();
-      if (token !== null) {
-        window.google.accounts.oauth2.revoke(token.access_token);
-        window.gapi.client.setToken('');
-
-        // authButton.innerText = 'Authorize';
-        // makeInvisible(signOutButton);
-      }
-    });
+    const token = window.gapi.client.getToken();
+    if (token !== null) {
+      window.google.accounts.oauth2.revoke(token.access_token);
+      window.gapi.client.setToken('');
+    }
   }
 
   this.isAuthenticated = function() {
@@ -231,6 +241,10 @@ export function GoogleCalendarHandler() {
       throw new Error("Item does not have an expiration date")
     }
 
+    if (await this.doesReminderExist(data)) {
+      throw new Error("Already exists");
+    }
+
     const year = getFullYear(data.EXP.year);
     const month = data.EXP.month;
     const date = `${year}-${month}-01`;
@@ -272,8 +286,42 @@ export function GoogleCalendarHandler() {
       'resource': event
     });
 
-    console.log(createEventResponse);
+    console.log("Event created:", createEventResponse);
     return createEventResponse;
+  }
+
+  this.doesReminderExist = async function(data) {
+    if (!this.isReady()) {
+      throw new Error("Not ready yet");
+    }
+
+    if (!data) {
+      throw new Error("Provide item data");
+    }
+
+    const searchQuery = data.PC ?? data.SN ?? data.EXP;
+    if (!searchQuery) {
+      throw new Error("Not enough info about medicine")
+    }
+
+    const response = await window.gapi.client.request({
+      path: `/calendar/v3/calendars/${this.calendarId}/events`,
+      params: {
+        'timeMin': (new Date()).toISOString(),
+        'showDeleted': false,
+        'singleEvents': true,
+        'maxResults': 1,
+        'orderBy': 'startTime',
+        'q': searchQuery
+      }
+    });
+    
+    const events = response.result.items;
+    if (!events || events.length == 0) {
+      return false;
+    }
+
+    return true;
   }
 }
 
