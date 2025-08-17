@@ -1,6 +1,17 @@
 import { getFullYear, stringifyError } from "./helper.mjs";
 import { AddToast } from "./toast.mjs";
 
+const CLIENT_ID = process.env["GOOGLE_CLIENT_ID"];
+const API_KEY = process.env["GOOGLE_API_KEY"];
+
+if (CLIENT_ID == undefined) {
+  throw new Error("GOOGLE_CLIENT_ID has not been set");
+}
+
+if (API_KEY == undefined) {
+  throw new Error("GOOGLE_API_KEY has not been set");
+}
+
 // Discovery doc URL for APIs used by the quickstart
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
 
@@ -10,8 +21,6 @@ const SCOPES = 'https://www.googleapis.com/auth/calendar';
 
 const calendarName = "Medicine reminder";
 const tokenStorageLocation = "my-access-token";
-const CLIENT_ID = process.env["GOOGLE-CLIENT-ID"];
-const API_KEY = process.env["GOOGLE-API-KEY"];
 
 export function GoogleCalendarHandler() {
   this.calendarId = null;

@@ -33,6 +33,9 @@ jobs:
 
     # Build using webpack
     - name: Build using webpack
+      env:
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         npm install
         npm run build
