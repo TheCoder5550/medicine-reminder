@@ -1,0 +1,51 @@
+name: Publish Github Pages
+
+on:
+  # push:
+  #   branches: [ "main" ]
+  # pull_request:
+  #   branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    # Get repo files
+    - uses: actions/checkout@v4
+
+    # Install node
+    - name: Use Node.js 24.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+
+    # Build using webpack
+    - name: Build using webpack
+      run: |
+        npm install
+        npm run build
+
+    # Upload to GitHub Pages
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+  
+    - name: Upload Artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{ github.workspace }}/dist
+  
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
