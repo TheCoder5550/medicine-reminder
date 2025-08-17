@@ -21,10 +21,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
-    env:
-      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-
     steps:
     # Get repo files
     - uses: actions/checkout@v4
@@ -34,6 +30,16 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 24.x
+
+    # Create .env
+    - name: Create .env
+      run: |
+        touch .env
+        echo GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID >> .env
+        echo GOOGLE_API_KEY=$GOOGLE_API_KEY >> .env
+      env:
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
     # Build using webpack
     - name: Build using webpack
