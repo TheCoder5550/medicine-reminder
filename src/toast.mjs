@@ -1,4 +1,11 @@
-import { hideElement, replayAnimation, setHidden } from "./helper.mjs";
+import { createIcon, hideElement, replayAnimation, setHidden } from "./helper.mjs";
+
+const MAX_TOASTS = 5;
+
+const toastContainer = document.querySelector("#toast-container");
+if (!toastContainer) {
+  throw new Error("Add toast container to html");
+}
 
 /**
  * @param {string} title 
@@ -41,20 +48,37 @@ export function AddToast(title, body, type = "info", lifetime = 5000) {
     hideElement(bodySpan);
   }
 
+  // Add close button
+  const closeButton = document.createElement("button");
+  closeButton.classList.add("icon-button", "secondary-button", "close-button");
+  closeButton.append(createIcon("close"));
+  closeButton.addEventListener("click", () => {
+    removeThisToast();
+  })
+  toast.append(closeButton);
+
   // Add to DOM
-  const toastContainer = document.querySelector("#toast-container");
-  if (!toastContainer) {
-    throw new Error("Add toast container to html");
-  }
   toastContainer.insertBefore(toast, toastContainer.firstChild);
+  
+  // Remove old toasts if too many
+  if (toastContainer.children.length > MAX_TOASTS) {
+    toastContainer.lastChild.remove();
+  }
 
   // Remove from DOM
+  let timeout = null;
   if (lifetime !== -1) {
-    setTimeout(removeThisToast, lifetime);
+    timeout = setTimeout(removeThisToast, lifetime);
   }
 
-  // Tap to remove toast
-  toast.addEventListener("click", removeThisToast);
+  toast.addEventListener("touchstart", () => {
+    clearTimeout(timeout);
+  });
+  toast.addEventListener("touchend", () => {
+    if (lifetime !== -1) {
+      timeout = setTimeout(removeThisToast, lifetime);
+    }
+  });
 
   function removeThisToast() {
     if (isRemoved) {
@@ -111,10 +135,24 @@ export function editToast(toast, title, body, type, lifetime = -1) {
 }
 
 function removeToast(toast) {
+  toast.isRemoved = true;
+  toast.style.animation = "";
   replayAnimation(toast);
+  toast.style.animationFillMode = "both";
   toast.style.animationDirection = "reverse";
 
   setTimeout(() => {
+    const refIndex = Array.from(toastContainer.children).indexOf(toast);
     toast.remove();
-  }, 300);
+
+    for (let i = 0; i < toastContainer.children.length; i++) {
+      const otherToast = toastContainer.children[i];
+      if (otherToast == toast || i < refIndex || otherToast.isRemoved) {
+        continue;
+      }
+
+      otherToast.style.animation = "slide-down 400ms";
+      replayAnimation(otherToast);
+    }
+  }, 400);
 }

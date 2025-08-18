@@ -24,6 +24,9 @@ module.exports = env => {
     devtool: isDev ? 'inline-source-map' : undefined,
     devServer: isDev ? {
       static: './dist',
+      watchFiles: ["src/*.html"],
+      hot: true,
+
       // Make ngrok work
       allowedHosts: 'all',
       client: {

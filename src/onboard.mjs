@@ -3,49 +3,94 @@ import { hideElement, showElement } from "./helper.mjs";
 const SLIDE_TIME = 350;
 const OLD_SLIDE_MOVE_PERCENTAGE = 0.25;
 
-const welcomeScreen = document.querySelector("#welcome-screen");
-const cameraRequestScreen = document.querySelector("#camera-request-screen");
-const loginScreen = document.querySelector("#login-screen");
+const onboardContainer = document.querySelector("#onboard");
+if (!onboardContainer) {
+  throw new Error("Onboard container not found");
+}
 
-const slides = [
-  welcomeScreen,
-  cameraRequestScreen,
-  loginScreen
-];
-
-for (const slide of slides) {
-  if (!slide) {
-    throw new Error("Slide not found");
-  }
-
+const slides = Array.from(onboardContainer.children);
+for (let i = slides.length - 1; i >= 0; i--) {
+  const slide = slides[i];
+  document.body.prepend(slide);
   hideElement(slide);
 }
+onboardContainer.remove();
 
 const runningTimeouts = [];
 let currentSlideIndex = null;
 
+export function getActiveSlide() {
+  const slideData = getSlide(currentSlideIndex);
+  if (slideData == null) {
+    return null;
+  }
+
+  return slideData.slide;
+}
+
+export function getAllSlides() {
+  return slides;
+}
+
+export function setDisabled(ref, disabled) {
+  const slideData = getSlide(ref);
+  if (!slideData) {
+    throw new Error("Slide is null");
+  }
+
+  const slide = slideData.slide;
+  if (disabled) {
+    slide.setAttribute("disabled", "");
+  }
+  else {
+    slide.removeAttribute("disabled");
+  }
+}
+
+export function showFirstSlideInstant() {
+  for (let i = 0; i < slides.length; i++) {
+    if (isDisabled(i)) {
+      continue;
+    }
+
+    showSlideInstant(i);
+    return true;
+  }
+
+  return false;
+}
+
 export function showPrevSlide() {
-  if (currentSlideIndex == null) {
-    return;
-  }
-
-  if (currentSlideIndex - 1 < 0) {
-    return;
-  }
-
-  showSlide(currentSlideIndex - 1, false);
+  return showSlideRelative(-1);
 }
 
 export function showNextSlide() {
+  return showSlideRelative(1);
+}
+
+function showSlideRelative(inc = 1) {
   if (currentSlideIndex == null) {
-    return;
+    return false;
   }
 
-  if (currentSlideIndex + 1 >= slides.length) {
-    return;
+  const nextIndex = currentSlideIndex + inc;
+
+  if (nextIndex >= slides.length || nextIndex < 0) {
+    return false;
   }
 
-  showSlide(currentSlideIndex + 1, true);
+  const slideData = getSlide(nextIndex);
+  if (slideData && slideData.slide && isDisabled(slideData.slide)) {
+    const skipInc = inc + Math.sign(inc);
+    if (skipInc == inc) {
+      return true;
+    }
+
+    return showSlideRelative(skipInc);
+  }
+
+  showSlide(nextIndex, inc > 0);
+  return true;
 }
 
 export function showSlide(ref, forward = true) {
@@ -87,6 +132,7 @@ export function showSlideInstant(ref) {
 
   const slideData = getSlide(ref);
   if (slideData != null) {
+    slideData.slide.style.zIndex = "20";
     showElement(slideData.slide);
   }
 
@@ -171,4 +217,13 @@ function getSlide(ref) {
   }
 
   throw new Error("Invalid slide: Unknown")
+}
+
+function isDisabled(ref) {
+  const slideData = getSlide(ref);
+  if (!slideData) {
+    throw new Error("Slide is null");
+  }
+
+  return slideData.slide.hasAttribute("disabled");
 }

@@ -1,0 +1,163 @@
+* {
+  box-sizing: border-box;
+ 
+  font-family: "Inter", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+
+  font-size: 1rem;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 300,
+  'GRAD' 0,
+  'opsz' 24
+}
+
+:root {
+  --background-color: rgb(37, 37, 37);
+  --text-color: #ddd;
+
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sa: var(--sat) var(--sar) var(--sab) var(--sal);
+}
+
+body {
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+
+  color: var(--text-color);
+  background: var(--background-color);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-size: unset;
+}
+
+p {
+  margin: 0;
+}
+
+/*
+  Hidden
+*/
+
+.hidden {
+  display: none !important;
+}
+
+.invisible {
+  visibility: hidden !important;
+}
+
+/*
+  Input
+*/
+
+input:not([type]),
+input[type=text] {
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 4px;
+  padding: 0.25em 0.5em;
+}
+
+/*
+  Buttons
+*/
+
+button {
+  all: unset;
+  cursor: pointer;
+  background: white;
+  color: rgb(26, 26, 26);
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: background 100ms;
+
+  padding: 0.75em 3em;
+}
+
+.theme-button {
+  background: rgb(25, 96, 189);
+  color: white;
+}
+
+.theme-button:not(:disabled):hover {
+  background: rgb(37, 85, 148);
+}
+
+.secondary-button {
+  padding: 0.5em;
+  background: none;
+  text-decoration: underline;
+  color: inherit;
+}
+
+.secondary-button:not(:disabled):hover,
+.secondary-button:not(:disabled):active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.icon-button {
+  gap: 0.25em;
+  padding: 0.25em;
+  text-decoration: none;
+}
+
+.icon-button .material-symbols-outlined {
+  font-size: 1.25em;
+}
+
+.icon-button,
+.icon-button .material-symbols-outlined {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.icon-button.filled {
+  background: var(--background-color);
+}
+
+.icon-button:not(:disabled):hover,
+.icon-button:not(:disabled):active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.icon-button.filled:not(:disabled):hover,
+.icon-button.filled:not(:disabled):active {
+  background: rgb(73, 73, 73);
+}
+
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/*
+  Loading
+*/
+
+.spinner {
+  width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  border-left-color: transparent;
+  animation: spin 750ms infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}

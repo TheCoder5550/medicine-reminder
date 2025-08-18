@@ -17,9 +17,17 @@ const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/
 
 // Authorization scopes required by the API; multiple scopes can be
 // included, separated by spaces.
-const SCOPES = 'https://www.googleapis.com/auth/calendar';
+const SCOPES = [
+  // See the list of Google calendars you're subscribed to
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 
-const calendarName = "Medicine reminder";
+  // See, create, change, and delete events on Google calendars you own.
+  "https://www.googleapis.com/auth/calendar.events.owned",
+
+  // Make secondary Google calendars, and see, create, change, and delete events on them.
+  "https://www.googleapis.com/auth/calendar.app.created",
+].join(" ");
+
 const tokenStorageLocation = "my-access-token";
 
 export function GoogleCalendarHandler() {
@@ -29,6 +37,21 @@ export function GoogleCalendarHandler() {
   let isAuthed = false;
   let gapiInited = false;
   let gisInited = false;
+
+  const defaultEventSummary = "Medicin går ut";
+
+  this.onReAuth = null;
+
+  const reAuth = (result) => {
+    AddToast("Session expired. Sign in again");
+    console.error("Session expired", result);
+
+    isAuthed = false;
+    window.gapi.client.setToken('');
+    localStorage.removeItem(tokenStorageLocation);  
+
+    this.onReAuth?.(result);
+  };
 
   this.hasAuthorizedBefore = function() {
     const storedToken = localStorage.getItem(tokenStorageLocation);
@@ -47,27 +70,34 @@ export function GoogleCalendarHandler() {
 
   this.authorize = function() {
     return new Promise((resolve, reject) => {
-      const onAuthDoneWrapper = async () => {
-        getCalendarId()
-          .then(id => {
-            this.calendarId = id;
-            isAuthed = true;
-            resolve();
-          })
-          .catch((e) => {
-            localStorage.removeItem(tokenStorageLocation);
+      if (!this.isReady()) {
+        reject("Google API has not been initialized");
+        return;
+      }
 
-            // Invalid token
-            if (e.status == 401) {
-              AddToast("Session expired. Sign in again");
-            }
-            else {
-              AddToast("Authorization failed", stringifyError(e), "error");
-            }
+      const onAuthDoneWrapper = () => {
+        isAuthed = true;
+        resolve();
+        // getCalendarId()
+        //   .then(id => {
+        //     this.calendarId = id;
+        //     isAuthed = true;
+        //     resolve();
+        //   })
+        //   .catch((e) => {
+        //     localStorage.removeItem(tokenStorageLocation);
 
-            console.error(e);
-            reject(e);
-          });
+        //     // Invalid token
+        //     if (e.status == 401) {
+        //       AddToast("Session expired. Sign in again");
+        //     }
+        //     else {
+        //       AddToast("Authorization failed", stringifyError(e), "error");
+        //     }
+
+        //     console.error(e);
+        //     reject(e);
+        //   });
       }
 
       const handleAuthClick = async () => {
@@ -80,16 +110,17 @@ export function GoogleCalendarHandler() {
               access_token: token
             });
 
-            await onAuthDoneWrapper();
+            onAuthDoneWrapper();
             return;
           }
           catch (e) {
-            AddToast("Error", stringifyError(e), "error");
+            AddToast("Unknown error", stringifyError(e), "error");
           }
         }
 
         this.tokenClient.callback = async (resp) => {
           if (resp.error !== undefined) {
+            console.error("Here", resp);
             throw (resp);
           }
 
@@ -97,7 +128,7 @@ export function GoogleCalendarHandler() {
           localStorage.setItem(tokenStorageLocation, JSON.stringify(tokenData));
           localStorage.setItem("consent-done", "true");
 
-          await onAuthDoneWrapper();
+          onAuthDoneWrapper();
         };
         
         if (window.gapi.client.getToken() === null && localStorage.getItem("consent-done") !== "true") {
@@ -116,13 +147,14 @@ export function GoogleCalendarHandler() {
 
   this.signOut = function() {
     if (!this.isReady()) {
-      return;
+      throw new Error("Google API has not been initialized");
     }
 
     const token = window.gapi.client.getToken();
     if (token !== null) {
       window.google.accounts.oauth2.revoke(token.access_token);
       window.gapi.client.setToken('');
+      localStorage.removeItem(tokenStorageLocation);
     }
   }
 
@@ -135,7 +167,7 @@ export function GoogleCalendarHandler() {
   }
 
   this.init = function() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const gapiLoaded = () => {
         window.gapi.load('client', async () => {
           await window.gapi.client.init({
@@ -163,7 +195,16 @@ export function GoogleCalendarHandler() {
         }
       }
 
-      insertGoogleScripts(gapiLoaded, gsiLoaded);
+      let hasErrored = false;
+      const onLoadError = () => {
+        if (hasErrored) {
+          return;
+        }
+        hasErrored = true;
+        reject("Error loading Google script");
+      }
+
+      insertGoogleScripts(gapiLoaded, gsiLoaded, onLoadError, onLoadError);
     });
   }
 
@@ -200,46 +241,155 @@ export function GoogleCalendarHandler() {
   //   // document.getElementById('content').innerText = output;
   // }
 
-  async function getCalendarId() {
-    const calendar = await getExistingCalendar();
+  // const getCalendarId = async () => {
+  //   const calendar = await getExistingCalendar();
     
-    if (!calendar) {
-      const result = await createCalendar();
-      return result.id;
+  //   if (!calendar) {
+  //     const result = await createCalendar();
+  //     return result.id;
+  //   }
+
+  //   return calendar.id;
+  // }
+
+  // const getExistingCalendar = async () => {
+  //   const allCalendars = await this.listAllCalendars();
+  //   const calendar = allCalendars.find(i => i.summary === calendarName);
+  //   console.log("Matching calendar", calendar);
+
+  //   return calendar;
+  // }
+
+  this.isEventReminder = function(event) {
+    return (
+      event.summary == defaultEventSummary &&
+      event.start.date
+    )
+  }
+
+  this.getAllReminders = async function() {
+    if (!this.isReady()) {
+      throw new Error("Google API has not been initialized");
     }
 
-    return calendar.id;
+    if (!this.isAuthenticated()) {
+      throw new Error("Not signed in");
+    }
+
+    if (this.calendarId == null) {
+      throw new Error("Specify calendarId");
+    }
+
+    return new Promise((resolve, reject) => {
+      window.gapi.client.request({
+        path: `/calendar/v3/calendars/${this.calendarId}/events`,
+        params: {
+          "summary": defaultEventSummary,
+          'timeMin': (new Date()).toISOString(),
+          'showDeleted': false,
+          'singleEvents': true,
+          'orderBy': 'startTime',
+        }
+      })
+        .then(response => {
+          const events = response.result.items;
+          if (!events) {
+            resolve([]);
+            return;
+          }
+
+          const reminders = response.result.items.filter(this.isEventReminder);
+          resolve(reminders);
+        })
+        .catch(e => {
+          if (e && e.status == 401) {
+            reAuth(e);
+          }
+
+          reject(e);
+        });
+    });
   }
 
-  async function createCalendar() {
-    console.log("Creating calendar...");
+  this.createCalendar = async (calendarName) => {
+    if (!this.isReady()) {
+      throw new Error("Google API has not been initialized");
+    }
 
-    const request = {
-      "summary": calendarName
-    };
-    const response = await window.gapi.client.calendar.calendars.insert(request);
-    console.log("Create calendar response:", response);
+    if (!this.isAuthenticated()) {
+      throw new Error("Not signed in");
+    }
 
-    AddToast("Added calendar", `Calendar "${calendarName}" has been created`, "success");
+    if (!calendarName) {
+      throw new Error("Specify calendar name");
+    }
 
-    return response.result;
+    return new Promise((resolve, reject) => {
+      console.log("Creating calendar...");
+
+      const request = {
+        "summary": calendarName
+      };
+      window.gapi.client.calendar.calendars.insert(request)
+        .then(response => {
+          console.log("Create calendar response:", response);
+          resolve(response.result);
+        })
+        .catch(e => {
+          if (e && e.status == 401) {
+            reAuth(e);
+          }
+
+          reject(e);
+        })
+    });
   }
 
-  async function getExistingCalendar() {
-    const listCalendarResponse = await window.gapi.client.request({
-      path: "/calendar/v3/users/me/calendarList"
-    })
-    const calendar = listCalendarResponse.result.items.find(i => i.summary === calendarName);
+  this.listAllCalendars = async function() {
+    if (!this.isReady()) {
+      throw new Error("Google API has not been initialized");
+    }
 
-    console.log("All calendars", listCalendarResponse);
-    console.log("Matching calendar", calendar);
+    if (!this.isAuthenticated()) {
+      throw new Error("Not signed in");
+    }
 
-    return calendar;
+    return new Promise((resolve, reject) => {
+      window.gapi.client.request({
+        path: "/calendar/v3/users/me/calendarList"
+      })
+        .then(response => {
+          if (response.error) {
+            throw response.error;
+          }
+      
+          const calendars = response.result.items;
+          calendars.sort((a, b) => ((b.primary ? 1 : 0) - (a.primary ? 1 : 0)) * 2 + a.summary.localeCompare(b.summary));
+          console.log("All calendars", calendars);
+          
+          resolve(calendars);
+        })
+        .catch(e => {
+          if (e && e.status == 401) {
+            reAuth(e);
+          }
+
+          reject(e);
+        });
+    });
   }
 
   this.createReminder = async (data) => {
     if (!this.isReady()) {
-      throw new Error("Not ready yet");
+      throw new Error("Google API has not been initialized");
+    }
+
+    if (!this.isAuthenticated()) {
+      throw new Error("Not signed in");
+    }
+
+    if (this.calendarId == null) {
+      throw new Error("Specify calendarId");
     }
 
     if (!data) {
@@ -271,7 +421,7 @@ export function GoogleCalendarHandler() {
     desc += `\nEXP: ${month}/${year}`;
 
     const event = {
-      'summary': 'Medicin går ut',
+      'summary': defaultEventSummary,
       'location': 'Närmaste apotek',
       'description': desc,
       'start': {
@@ -301,7 +451,15 @@ export function GoogleCalendarHandler() {
 
   this.doesReminderExist = async function(data) {
     if (!this.isReady()) {
-      throw new Error("Not ready yet");
+      throw new Error("Google API has not been initialized");
+    }
+
+    if (!this.isAuthenticated()) {
+      throw new Error("Not signed in");
+    }
+
+    if (this.calendarId == null) {
+      throw new Error("Specify calendarId");
     }
 
     if (!data) {
@@ -313,40 +471,66 @@ export function GoogleCalendarHandler() {
       throw new Error("Not enough info about medicine")
     }
 
-    const response = await window.gapi.client.request({
-      path: `/calendar/v3/calendars/${this.calendarId}/events`,
-      params: {
-        'timeMin': (new Date()).toISOString(),
-        'showDeleted': false,
-        'singleEvents': true,
-        'maxResults': 1,
-        'orderBy': 'startTime',
-        'q': searchQuery
-      }
-    });
-    
-    const events = response.result.items;
-    if (!events || events.length == 0) {
-      return false;
-    }
+    return new Promise((resolve, reject) => {
+      window.gapi.client.request({
+        path: `/calendar/v3/calendars/${this.calendarId}/events`,
+        params: {
+          'timeMin': (new Date()).toISOString(),
+          'showDeleted': false,
+          'singleEvents': true,
+          'maxResults': 1,
+          'orderBy': 'startTime',
+          'q': searchQuery
+        }
+      })
+        .then(response => {
+          const events = response.result.items;
+          if (!events || events.length == 0) {
+            resolve(false);
+            return;
+          }
 
-    return true;
+          resolve(true);
+        })
+        .catch(e => {
+          if (e && e.status == 401) {
+            reAuth(e);
+          }
+
+          reject(e);
+        });
+    });
   }
 }
 
-function insertGoogleScripts(onGapiLoad, onGsiLoad) {
+export function getEventViewUrl(calendarId, event) {
+  if (calendarId == null) {
+    throw new Error("Provide calendarId")
+  }
+  
+  if (!event || !event.id) {
+    throw new Error("Invalid event");
+  }
+
+  const splitEventId = event.id.split('@');
+  return "https://www.google.com/calendar/event?eid=" + btoa(splitEventId[0] + " " + calendarId).replace("==", '');
+}
+
+function insertGoogleScripts(onGapiLoad, onGsiLoad, onGapiError, onGsiError) {
   const gapiScript = document.createElement("script");
   gapiScript.setAttribute("async", "");
   gapiScript.setAttribute("defer", "");
   gapiScript.setAttribute("src", "https://apis.google.com/js/api.js");
   gapiScript.addEventListener("load", onGapiLoad);
+  gapiScript.addEventListener("error", onGapiError);
   
   const gsiScript = document.createElement("script");
   gsiScript.setAttribute("async", "");
   gsiScript.setAttribute("defer", "");
   gsiScript.setAttribute("src", "https://accounts.google.com/gsi/client");
   gsiScript.addEventListener("load", onGsiLoad);
-  
+  gapiScript.addEventListener("error", onGsiError);
+
   document.body.append(gapiScript);
   document.body.append(gsiScript);
 }
