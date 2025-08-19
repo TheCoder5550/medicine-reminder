@@ -599,7 +599,7 @@ function getUniqueCalendarName(calendars) {
 
 function updateCalendarList() {
   calendarScreen.querySelector(".continue-button").disabled = true;
-  showElement(calendarScreen.querySelector(".spinner"));
+  showElement(calendarScreen.querySelector(".calendar-list-loading"));
   hideElement(calendarScreen.querySelector(".calendar-list"));
   updateCalendarListDOM([]);
 
@@ -614,8 +614,9 @@ function updateCalendarList() {
       }
     })
     .finally(() => {
-      calendarScreen.querySelector(".continue-button").disabled = false;
-      hideElement(calendarScreen.querySelector(".spinner"));
+      const checked = !!calendarScreen.querySelector('input[name="calendar-radio-button"]:checked');
+      calendarScreen.querySelector(".continue-button").disabled = !checked;
+      hideElement(calendarScreen.querySelector(".calendar-list-loading"));
       showElement(calendarScreen.querySelector(".calendar-list"));
     })
 }
@@ -626,6 +627,14 @@ function updateCalendarListDOM(calendars) {
   const list = calendarScreen.querySelector(".calendar-list");
   removeAllChildren(list);
 
+  // calendars = [
+  //   ...calendars,
+  //   ...calendars,
+  //   ...calendars,
+  //   ...calendars,
+  //   ...calendars,
+  // ]
+
   for (let i = 0; i < calendars.length; i++) {
     const calendar = calendars[i];
 
@@ -635,8 +644,13 @@ function updateCalendarListDOM(calendars) {
     radio.name = "calendar-radio-button";
     radio.value = calendar.id;
     radio.defaultChecked = prevId == null ?
-      i === 0 :
+      false :
       calendar.id == prevId;
+    radio.addEventListener("change", () => {
+      if (radio.checked) {
+        calendarScreen.querySelector(".continue-button").disabled = false;
+      }
+    });
 
     const item = document.createElement("label");
     item.classList.add("list-item");
@@ -661,9 +675,14 @@ function updateCalendarListDOM(calendars) {
   radio.id = "@new";
   radio.name = "calendar-radio-button";
   radio.value = "@new";
+  radio.addEventListener("change", () => {
+    if (radio.checked) {
+      calendarScreen.querySelector(".continue-button").disabled = false;
+    }
+  });
 
   const item = document.createElement("label");
-  item.classList.add("list-item");
+  item.classList.add("list-item", "new");
   item.setAttribute("for", radio.id);
 
   const square = document.createElement("div");
@@ -672,13 +691,19 @@ function updateCalendarListDOM(calendars) {
   square.style.border = "1px solid rgba(255, 255, 255, 0.2)";
 
   const text = document.createElement("span");
-  text.textContent = "New calendar: ";
+  text.textContent = "New: ";
 
   const inputField = document.createElement("input");
   inputField.type = "text";
   inputField.name = "new-calendar";
   inputField.placeholder = "Enter calendar name";
   inputField.value = getUniqueCalendarName(calendars);
+  inputField.addEventListener("keydown", e => {
+    if (e.code == "Enter") {
+      inputField.blur();
+      item.click();
+    }
+  })
 
   item.append(square);
   item.append(text);
@@ -699,7 +724,7 @@ function updateAllReminders() {
   
   allReminders = [];
   updateAllRemindersDOM();
-  showElement(document.querySelector(".info-overlay .spinner"));
+  showElement(document.querySelector(".all-reminders-loading"));
   hideElement(document.querySelector(".all-reminders"));
 
   googleCalendar.getAllReminders()
@@ -712,7 +737,7 @@ function updateAllReminders() {
       console.error(e);
     })
     .finally(() => {
-      hideElement(document.querySelector(".info-overlay .spinner"));
+      hideElement(document.querySelector(".all-reminders-loading"));
       showElement(document.querySelector(".all-reminders"));
       document.querySelector(".info-overlay .refresh").disabled = false;
     });

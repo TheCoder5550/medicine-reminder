@@ -54,6 +54,7 @@ module.exports = env => {
           appName: name,
           appShortName: "Med reminder",
           appDescription: description,
+          start_url: "./"
         }
       })
     ],
