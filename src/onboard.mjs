@@ -3,21 +3,24 @@ import { hideElement, showElement } from "./helper.mjs";
 const SLIDE_TIME = 350;
 const OLD_SLIDE_MOVE_PERCENTAGE = 0.25;
 
-const onboardContainer = document.querySelector("#onboard");
-if (!onboardContainer) {
-  throw new Error("Onboard container not found");
-}
-
-const slides = Array.from(onboardContainer.children);
-for (let i = slides.length - 1; i >= 0; i--) {
-  const slide = slides[i];
-  document.body.prepend(slide);
-  hideElement(slide);
-}
-onboardContainer.remove();
-
+let slides = [];
 const runningTimeouts = [];
 let currentSlideIndex = null;
+
+export function setupOnboard() {
+  const onboardContainer = document.querySelector("#onboard");
+  if (!onboardContainer) {
+    throw new Error("Onboard container not found");
+  }
+  
+  slides = Array.from(onboardContainer.children);
+  for (let i = slides.length - 1; i >= 0; i--) {
+    const slide = slides[i];
+    document.body.prepend(slide);
+    hideElement(slide);
+  }
+  onboardContainer.remove();
+}
 
 export function getActiveSlide() {
   const slideData = getSlide(currentSlideIndex);
@@ -133,6 +136,8 @@ export function showSlideInstant(ref) {
   const slideData = getSlide(ref);
   if (slideData != null) {
     slideData.slide.style.zIndex = "20";
+    slideData.slide.style.transition = "";
+    slideData.slide.style.transform = "";
     showElement(slideData.slide);
   }
 

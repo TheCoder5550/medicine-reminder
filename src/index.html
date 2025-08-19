@@ -16,155 +16,157 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
-  <div id="onboard">
-    <!-- Welcome page -->
-    <div id="welcome-screen" class="fullscreen-center hidden">
-      <img class="logo" src="<%= require('../logo.png') %>" />
-      <h2>Medicine reminder</h2>
-      <p>Automatically add reminders to Google Calendar for when medicine expires by scanning the data matrix.</p>
-      <button class="continue-button theme-button">Continue</button>
-    </div>
-  
-    <!-- Install page -->
-    <div id="install-screen" class="fullscreen-center hidden">
-      <h2>Add to homescreen</h2>
-      <p>Install the app by adding it to your homescreen.</p>
-      <ol>
-        <li>
-          Press
-          <div class="tag">
-            Share
-            <span class="material-symbols-outlined">
-              ios_share
-            </span>
-          </div>
-        </li>
-        <li>
-          Press
-          <div class="tag">
-            Add to homescreen
-            <span class="material-symbols-outlined">
-              add_box
-            </span>
-          </div>
-        </li>
-        <li>Close this tab and open the app on your homescreen</li>
-      </ol>
-  
-      <button class="secondary-button skip-button">Skip</button>
-      <button class="secondary-button back-button">
-        <span class="material-symbols-outlined">arrow_back_ios</span>
-        Back
-      </button>
-    </div>
-  
-    <!-- Request camera permission page -->
-    <div id="camera-request-screen" class="fullscreen-center hidden">
-      <h2>Permissions</h2>
-      <p>Allow camera permissions to use the scanner.</p>
-      <video playsinline autoplay muted class="preview-video"></video>
-      <button class="request-button theme-button">Allow camera</button>
-      <button class="continue-button theme-button hidden">Continue</button>
-  
-      <button class="secondary-button skip-button">Skip</button>
-      <button class="secondary-button back-button">Back</button>
-    </div>
-  
-    <!-- Login page -->
-    <div id="login-screen" class="fullscreen-center hidden">
-      <img width="200" src="<%= require('./assets/calendar.svg') %>"></img>
-      <h2>Sync your calendar</h2>
-      <p>Sign in with Google to add your reminders to your Google Calendar.</p>
-      <button id="authorize_button" class="theme-button">Sign in with Google</button>
-      <button id="signout_button" class="primary-button">Sign Out</button>
-  
-      <button class="secondary-button skip-button">Skip</button>
-      <button class="secondary-button back-button">Back</button>
-    </div>
-
-    <!-- Calendar selection page -->
-    <div id="calendar-screen" class="fullscreen-center hidden">
-      <h2>Select a calendar</h2>
-      <p>Choose which calendar reminders will be added to.</p>
-      <div class="calendar-list"></div>
-      <button class="continue-button theme-button">Continue</button>
-  
-      <button class="secondary-button skip-button">Skip</button>
-      <button class="secondary-button back-button">Back</button>
-    </div>
-  </div>
-
-  <!-- Scanner -->
-  <div id="scanner-screen" class="fullscreen-center hidden">
-    <div class="video-container">
-      <video playsinline autoplay muted id="video"></video>
-      <div class="scan-frame">
-        <div class="corner"></div>
-        <div class="corner"></div>
-        <div class="corner"></div>
-        <div class="corner"></div>
+  <template id="app">
+    <div id="onboard">
+      <!-- Welcome page -->
+      <div id="welcome-screen" class="fullscreen-center hidden">
+        <img class="logo" src="<%= require('../logo.png') %>" />
+        <h2>Medicine reminder</h2>
+        <p>Automatically add reminders to Google Calendar for when medicine expires by scanning the data matrix.</p>
+        <button class="continue-button theme-button">Continue</button>
       </div>
-    </div>
-
-    <button class="icon-button filled secondary-button restart-camera">
-      Refresh camera
-      <span class="material-symbols-outlined">
-        replace_video
-      </span>
-    </button>
-
-    <div class="info-overlay">
-      <div class="header">
-        <h3>Reminders</h3>
-
-        <button class="refresh secondary-button icon-button">
-          <span class="material-symbols-outlined">
-            refresh
-          </span>
+    
+      <!-- Install page -->
+      <div id="install-screen" class="fullscreen-center hidden">
+        <h2>Add to homescreen</h2>
+        <p>Install the app by adding it to your homescreen.</p>
+        <ol>
+          <li>
+            Press
+            <div class="tag">
+              Share
+              <span class="material-symbols-outlined">
+                ios_share
+              </span>
+            </div>
+          </li>
+          <li>
+            Press
+            <div class="tag">
+              Add to homescreen
+              <span class="material-symbols-outlined">
+                add_box
+              </span>
+            </div>
+          </li>
+          <li>Close this tab and open the app on your homescreen</li>
+        </ol>
+    
+        <button class="secondary-button skip-button">Skip</button>
+        <button class="secondary-button back-button">
+          <span class="material-symbols-outlined">arrow_back_ios</span>
+          Back
         </button>
       </div>
-      <div class="body">
-        <div class="list-header">
-          <span>Expires</span>
-          <span>Renew in</span>
-        </div>
-        <div class="all-reminders"></div>
+    
+      <!-- Request camera permission page -->
+      <div id="camera-request-screen" class="fullscreen-center hidden">
+        <h2>Permissions</h2>
+        <p>Allow camera permissions to use the scanner.</p>
+        <video playsinline autoplay muted class="preview-video"></video>
+        <button class="request-button theme-button">Allow camera</button>
+        <button class="continue-button theme-button hidden">Continue</button>
+    
+        <button class="secondary-button skip-button">Skip</button>
+        <button class="secondary-button back-button">Back</button>
+      </div>
+    
+      <!-- Login page -->
+      <div id="login-screen" class="fullscreen-center hidden">
+        <img width="200" src="<%= require('./assets/calendar.svg') %>"></img>
+        <h2>Sync your calendar</h2>
+        <p>Sign in with Google to add your reminders to your Google Calendar.</p>
+        <button id="authorize_button" class="theme-button">Sign in with Google</button>
+        <button id="signout_button" class="primary-button">Sign Out</button>
+    
+        <button class="secondary-button skip-button">Skip</button>
+        <button class="secondary-button back-button">Back</button>
+      </div>
+
+      <!-- Calendar selection page -->
+      <div id="calendar-screen" class="fullscreen-center hidden">
+        <h2>Select a calendar</h2>
+        <p>Choose which calendar reminders will be added to.</p>
+        <button class="secondary-button refresh">Refresh list</button>
+        <div class="spinner hidden"></div>
+        <div class="calendar-list"></div>
+        <button class="continue-button theme-button">Continue</button>
+    
+        <button class="secondary-button skip-button">Skip</button>
+        <button class="secondary-button back-button">Back</button>
       </div>
     </div>
 
-    <div class="result-container">
-      <span id="result"></span>
+    <!-- Scanner -->
+    <div id="scanner-screen" class="fullscreen-center hidden">
+      <div class="video-container">
+        <video playsinline autoplay muted id="video"></video>
+        <div class="scan-frame">
+          <div class="corner"></div>
+          <div class="corner"></div>
+          <div class="corner"></div>
+          <div class="corner"></div>
+        </div>
+
+        <div class="video-error-icon hidden">
+          <span class="material-symbols-outlined">
+            videocam_alert
+          </span>
+          <span>Camera disabled</span>
+        </div>
+      </div>
+
+      <button class="icon-button filled secondary-button restart-camera">
+        Refresh camera
+        <span class="material-symbols-outlined">
+          replace_video
+        </span>
+      </button>
+
+      <div class="info-overlay">
+        <div class="header">
+          <h3>Reminders</h3>
+
+          <button class="refresh secondary-button icon-button">
+            <span class="material-symbols-outlined">
+              refresh
+            </span>
+          </button>
+        </div>
+        <div class="body">
+          <div class="list-header">
+            <span>Expires</span>
+            <span>Renew in</span>
+          </div>
+          <div class="spinner hidden"></div>
+          <div class="all-reminders"></div>
+        </div>
+      </div>
+
+      <div class="result-container">
+        <span id="result"></span>
+      </div>
     </div>
-  </div>
 
-  <canvas id="canvas"></canvas>
+    <canvas id="canvas"></canvas>
 
-  <!-- Camera error -->
-  <div id="camera-error" class="fullscreen-center hidden">
-    <img width="100" src="<%= require('./assets/camera.svg') %>"></img>
-    <h2>Camera error</h2>
-    <p>Could not start scanner. Make sure you have given permission to use the camera.</p>
-    <p class="error-label"></p>
+    <!-- Loader -->
+    <div id="loader" class="fullscreen-center hidden">
+      <div class="spinner"></div>
+    </div>
 
-    <button onclick="window.location.reload()" class="primary-button">Reload page</button>
-  </div>
+    <!-- Application error -->
+    <div id="app-error" class="fullscreen-center hidden">
+      <h2>Application error</h2>
+      <p>There was a problem with the application</p>
+      <p class="error-label"></p>
 
-  <!-- Loader -->
-  <div id="loader" class="fullscreen-center hidden">
-    <div class="spinner"></div>
-  </div>
+      <button onclick="window.location.reload()" class="primary-button">Reload page</button>
+    </div>
 
-  <!-- Application error -->
-  <div id="app-error" class="fullscreen-center hidden">
-    <h2>Application error</h2>
-    <p>There was a problem with the application</p>
-    <p class="error-label"></p>
-
-    <button onclick="window.location.reload()" class="primary-button">Reload page</button>
-  </div>
-
-  <!-- Toast -->
-  <div id="toast-container"></div>
+    <!-- Toast -->
+    <div id="toast-container"></div>
+  </template>
 
   <!-- <script src="https://aaserver.net/libraries/fakeConsole/fakeConsole-4.0.js"></script> -->
 </body>

@@ -78,26 +78,6 @@ export function GoogleCalendarHandler() {
       const onAuthDoneWrapper = () => {
         isAuthed = true;
         resolve();
-        // getCalendarId()
-        //   .then(id => {
-        //     this.calendarId = id;
-        //     isAuthed = true;
-        //     resolve();
-        //   })
-        //   .catch((e) => {
-        //     localStorage.removeItem(tokenStorageLocation);
-
-        //     // Invalid token
-        //     if (e.status == 401) {
-        //       AddToast("Session expired. Sign in again");
-        //     }
-        //     else {
-        //       AddToast("Authorization failed", stringifyError(e), "error");
-        //     }
-
-        //     console.error(e);
-        //     reject(e);
-        //   });
       }
 
       const handleAuthClick = async () => {
@@ -115,6 +95,7 @@ export function GoogleCalendarHandler() {
           }
           catch (e) {
             AddToast("Unknown error", stringifyError(e), "error");
+            console.error(e);
           }
         }
 
@@ -207,58 +188,6 @@ export function GoogleCalendarHandler() {
       insertGoogleScripts(gapiLoaded, gsiLoaded, onLoadError, onLoadError);
     });
   }
-
-  // async function viewNearestExp() {
-  //   let response;
-  //   try {
-  //     const request = {
-  //       'calendarId': this.calendarId,
-  //       'timeMin': (new Date()).toISOString(),
-  //       'showDeleted': false,
-  //       'singleEvents': true,
-  //       'maxResults': 1,
-  //       'orderBy': 'startTime',
-  //     };
-  //     response = await window.gapi.client.calendar.events.list(request);
-  //   } catch (err) {
-  //     document.getElementById('content').innerText = err.message;
-  //     return;
-  //   }
-
-  //   const events = response.result.items;
-  //   if (!events || events.length == 0) {
-  //     document.getElementById('content').innerText = 'No events found.';
-  //     return;
-  //   }
-
-  //   const date = events[0].start.dateTime || events[0].start.date;
-  //   document.getElementById('content').innerText = "Next item expires: " + date;
-    
-  //   // // Flatten to string to display
-  //   // const output = events.reduce(
-  //   //     (str, event) => `${str}${event.summary} (${event.start.dateTime || event.start.date})\n`,
-  //   //     'Events:\n');
-  //   // document.getElementById('content').innerText = output;
-  // }
-
-  // const getCalendarId = async () => {
-  //   const calendar = await getExistingCalendar();
-    
-  //   if (!calendar) {
-  //     const result = await createCalendar();
-  //     return result.id;
-  //   }
-
-  //   return calendar.id;
-  // }
-
-  // const getExistingCalendar = async () => {
-  //   const allCalendars = await this.listAllCalendars();
-  //   const calendar = allCalendars.find(i => i.summary === calendarName);
-  //   console.log("Matching calendar", calendar);
-
-  //   return calendar;
-  // }
 
   this.isEventReminder = function(event) {
     return (

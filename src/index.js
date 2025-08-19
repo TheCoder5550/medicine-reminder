@@ -3,10 +3,22 @@ import "./slide-overlay.mjs";
 
 import { BrowserDatamatrixCodeReader } from '@zxing/browser';
 import { AddToast, editToast } from "./toast.mjs";
-import { formatDuration, formatGoogleDate, getFullYear, hideElement, isMobile, isStandalone, removeAllChildren, showElement, stringifyError } from "./helper.mjs";
+import { formatDuration, formatGoogleDate, getFullYear, hideElement, isMobile, isStandalone, removeAllChildren, setHidden, showElement, stringifyError } from "./helper.mjs";
 import { decodeMedicineData } from "./medicine-decoding.mjs";
 import { getEventViewUrl, GoogleCalendarHandler } from "./google-api.mjs";
-import { getActiveSlide, getAllSlides, setDisabled, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+import { getActiveSlide, getAllSlides, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+import { createSlideOverlays } from "./slide-overlay.mjs";
+
+const appTemplate = document.querySelector("#app");
+if (!appTemplate) {
+  throw new Error("No app template exists.")
+}
+const clone = appTemplate.content.cloneNode(true);
+document.body.appendChild(clone);
+appTemplate.remove();
+
+setupOnboard();
+createSlideOverlays();
 
 // localStorage.removeItem("calendarId");
 // localStorage.removeItem("consent-done");
@@ -51,7 +63,6 @@ await googleCalendar.init().catch(e => AddToast("Application error", stringifyEr
 googleCalendar.calendarId = localStorage.getItem("calendarId");
 
 googleCalendar.onReAuth = () => {
-  console.log("bruh");
   showLoginSingle();
 };
 
@@ -193,38 +204,12 @@ calendarScreen.querySelector(".skip-button").addEventListener("click", () => {
   }
 });
 
+calendarScreen.querySelector(".refresh").addEventListener("click", updateCalendarList);
+
 // Scanner screen
-document.querySelector(".restart-camera").addEventListener("click", () => {
-  document.querySelector(".restart-camera").disabled = true;
+document.querySelector(".restart-camera").addEventListener("click", restartCamera);
 
-  stopCamera();
-  setTimeout(() => {
-    startCamera()
-      .finally(() => {
-        document.querySelector(".restart-camera").disabled = false;
-      })
-  }, 1000);
-});
-
-document.querySelector(".info-overlay .refresh").addEventListener("click", () => {
-  document.querySelector(".info-overlay .refresh").disabled = true;
-
-  allReminders = [];
-  updateAllRemindersDOM();
-
-  googleCalendar.getAllReminders()
-    .then(events => {
-      allReminders = events;
-      updateAllRemindersDOM();
-    })
-    .catch(e => {
-      AddToast("Could not get reminders", stringifyError(e), "error");
-      console.error(e);
-    })
-    .finally(() => {
-      document.querySelector(".info-overlay .refresh").disabled = false;
-    });
-});
+document.querySelector(".info-overlay .refresh").addEventListener("click", updateAllReminders);
 
 scannerScreen.querySelector(".video-container").addEventListener("click", () => {
   scale = scale === 0.15 ? 0.3 : 0.15;
@@ -236,8 +221,11 @@ scannerScreen.querySelector(".video-container").addEventListener("click", () => 
 video.addEventListener("play", () => {
   const videoContainer = scannerScreen.querySelector(".video-container");
   const aspect = video.videoWidth / video.videoHeight;
-  videoContainer.style.aspect = aspect;
-  videoContainer.style.width = `max(100vw, 100vh * ${aspect})`;
+  if (!isNaN(aspect)) {
+    videoContainer.style.aspect = aspect;
+    videoContainer.style.width = `max(100vw, 100vh * ${aspect})`;
+    videoContainer.style.height = "unset";
+  }
 
   clearTimeout(renderFrameTimeout);
   renderFrame();
@@ -249,18 +237,40 @@ const hasChoosenCalendar = googleCalendar.calendarId != null;
 setDisabled(welcomeScreen, isOnboardDone);
 setDisabled(installScreen, isOnboardDone || isStandalone() || !isMobile());
 setDisabled(cameraRequestScreen, isOnboardDone);
-setDisabled(loginScreen, false && googleCalendar.hasAuthorizedBefore());
+setDisabled(loginScreen, googleCalendar.hasAuthorizedBefore());
 setDisabled(calendarScreen, isOnboardDone && hasChoosenCalendar);
 
-if (!showFirstSlideInstant()) {
-  console.log("No slides left");
-  // if (googleCalendar.hasAuthorizedBefore()) {
-  //   document.querySelector("#authorize_button").click();
-  // }
+if (googleCalendar.hasAuthorizedBefore()) {
+  googleCalendar.authorize()
+    .catch(e => {
+      if (e.status != 401) {
+        AddToast("Sign-in error", stringifyError(e), "error");
+      }
+      console.error(e);
+    })
+    .finally(() => {
+      if (!showFirstSlideInstant()) {
+        console.log("No slides left");
+        onboardDone();
+      }
+      else {
+        onShowSlide();
+      }
+    })
 }
 else {
-  onShowSlide();
+  if (!showFirstSlideInstant()) {
+    console.log("No slides left");
+    onboardDone();
+    // if (googleCalendar.hasAuthorizedBefore()) {
+    //   document.querySelector("#authorize_button").click();
+    // }
+  }
+  else {
+    onShowSlide();
+  }
 }
+
 
 for (const slide of getAllSlides()) {
   const skipButton = slide.querySelector(".skip-button");
@@ -297,16 +307,7 @@ function onShowSlide() {
       return;
     }
     case calendarScreen: {
-      googleCalendar.listAllCalendars()
-        .then(calendars => {
-          const owned = calendars.filter(c => c.accessRole == "owner");
-          updateCalendarList(owned);
-        })
-        .catch(e => {
-          if (e.status != 401) {
-            AddToast("Could not list calendars", stringifyError(e), "error");
-          }
-        })
+      updateCalendarList();
       return;
     }
   }
@@ -354,9 +355,13 @@ function onboardDone() {
 // }
 
 function showLoginSingle() {
-  console.log("sgow login again")
+  if (getActiveSlide() == loginScreen) {
+    console.log("nothing")
+    return;
+  }
+  
   showSlideInstant(loginScreen);
-  hideElement(loginScreen.querySelector(".back-button"));
+  // hideElement(loginScreen.querySelector(".back-button"));
 }
 
 function renderFrame() {
@@ -376,34 +381,18 @@ async function startScanner() {
   
   clearTimeout(renderFrameTimeout);
 
-  if (googleCalendar.isAuthenticated()) {
-    googleCalendar.getAllReminders()
-      .then(events => {
-        allReminders = events;
-        updateAllRemindersDOM();
-      })
-      .catch(e => {
-        AddToast("Could not get reminders", stringifyError(e), "error");
-        console.error(e);
-      })
-      .finally(() => {
-        document.querySelector(".info-overlay .refresh").disabled = false;
-      });
-  }
-  else {
-    updateAllRemindersDOM();
-  }
+  updateAllReminders();
 
   startCamera()
     .then(() => {
       renderFrame();
-
-      hideElement(loaderScreen);
-      showElement(scannerScreen);
     })
     .catch(e => {
       AddToast("Camera error", stringifyError(e), "error");
-      showCameraError(e);
+    })
+    .finally(() => {
+      hideElement(loaderScreen);
+      showElement(scannerScreen);
     });
 }
 
@@ -424,27 +413,60 @@ async function startCamera() {
     }
   };
 
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  previewVideo.srcObject = stream;
-  video.srcObject = stream;
-  video.onloadedmetadata = () => {
-    video.play();
-  };
-  
-  hasStartedCamera = true;
-  return true;
+  return new Promise((resolve, reject) => {
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        stream.getVideoTracks().forEach(track => {
+          track.addEventListener("ended", () => {
+            setVideoEnabledDOM(false);
+          });
+        });
+    
+        previewVideo.srcObject = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+        };
+    
+        setVideoEnabledDOM(true);
+        
+        hasStartedCamera = true;
+        resolve(true);
+      })
+      .catch(e => {
+        setVideoEnabledDOM(false);
+        reject(e);
+      })
+  })
 }
 
 function stopCamera() {
   const stream = video.srcObject;
-  stream.getTracks().forEach((track) => {
-    if (track.readyState == 'live') {
-      track.stop();
-    }
-  });
+  if (stream) {
+    stream.getTracks().forEach((track) => {
+      if (track.readyState == 'live') {
+        track.stop();
+      }
+    });
+  }
 
   video.pause();
   hasStartedCamera = false;
+}
+
+function restartCamera() {
+  document.querySelector(".restart-camera").disabled = true;
+
+  stopCamera();
+  setTimeout(() => {
+    startCamera()
+      .catch(e => {
+        AddToast("Camera error", stringifyError(e), "error");
+      })
+      .finally(() => {
+        document.querySelector(".restart-camera").disabled = false;
+      })
+  }, 300);
 }
 
 function scanCanvas() {
@@ -501,8 +523,6 @@ function scanCanvas() {
  * @param {CanvasRenderingContext2D} ctx 
  */
 function renderVideoToCanvas(video, canvas, ctx) {
-  // scale = scale == 0.15 ? 0.3 : 0.15;
-
   const aspect = video.videoWidth / video.videoHeight;
   ctx.drawImage(
     video,
@@ -558,13 +578,9 @@ function renderVideoToCanvas(video, canvas, ctx) {
   ctx.putImageData(imageData, 0, 0);
 }
 
-function showCameraError(error) {
-  const errorScreen = document.querySelector("#camera-error");
-  errorScreen.querySelector(".error-label").textContent = stringifyError(error);
-  showElement(errorScreen);
-
-  hideElement(loaderScreen);
-  hideElement(scannerScreen);
+function setVideoEnabledDOM(enabled) {
+  setHidden(scannerScreen.querySelector(".scan-frame"), !enabled);
+  setHidden(scannerScreen.querySelector(".video-error-icon"), enabled);
 }
 
 function getUniqueCalendarName(calendars) {
@@ -581,7 +597,30 @@ function getUniqueCalendarName(calendars) {
   return "";
 }
 
-function updateCalendarList(calendars) {
+function updateCalendarList() {
+  calendarScreen.querySelector(".continue-button").disabled = true;
+  showElement(calendarScreen.querySelector(".spinner"));
+  hideElement(calendarScreen.querySelector(".calendar-list"));
+  updateCalendarListDOM([]);
+
+  googleCalendar.listAllCalendars()
+    .then(calendars => {
+      const owned = calendars.filter(c => c.accessRole == "owner");
+      updateCalendarListDOM(owned);
+    })
+    .catch(e => {
+      if (e.status != 401) {
+        AddToast("Could not list calendars", stringifyError(e), "error");
+      }
+    })
+    .finally(() => {
+      calendarScreen.querySelector(".continue-button").disabled = false;
+      hideElement(calendarScreen.querySelector(".spinner"));
+      showElement(calendarScreen.querySelector(".calendar-list"));
+    })
+}
+
+function updateCalendarListDOM(calendars) {
   const prevId = localStorage.getItem("calendarId");
 
   const list = calendarScreen.querySelector(".calendar-list");
@@ -647,6 +686,36 @@ function updateCalendarList(calendars) {
 
   list.appendChild(radio);
   list.appendChild(item);
+}
+
+function updateAllReminders() {
+  if (!googleCalendar.isAuthenticated()) {
+    allReminders = [];
+    updateAllRemindersDOM();
+    return;
+  }
+
+  document.querySelector(".info-overlay .refresh").disabled = true;
+  
+  allReminders = [];
+  updateAllRemindersDOM();
+  showElement(document.querySelector(".info-overlay .spinner"));
+  hideElement(document.querySelector(".all-reminders"));
+
+  googleCalendar.getAllReminders()
+    .then(events => {
+      allReminders = events;
+      updateAllRemindersDOM();
+    })
+    .catch(e => {
+      AddToast("Could not get reminders", stringifyError(e), "error");
+      console.error(e);
+    })
+    .finally(() => {
+      hideElement(document.querySelector(".info-overlay .spinner"));
+      showElement(document.querySelector(".all-reminders"));
+      document.querySelector(".info-overlay .refresh").disabled = false;
+    });
 }
 
 function updateAllRemindersDOM() {

@@ -189,3 +189,14 @@ export function createIcon(name, className = "material-symbols-outlined", elemen
   icon.textContent = name;
   return icon;
 }
+
+/**
+ * constrain x between a and b
+ * @param {number} x 
+ * @param {number} a 
+ * @param {number} b 
+ * @returns {number}
+ */
+export function clamp(x, a, b) {
+  return Math.max(a, Math.min(b, x));
+}

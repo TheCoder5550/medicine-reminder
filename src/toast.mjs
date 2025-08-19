@@ -2,9 +2,19 @@ import { createIcon, hideElement, replayAnimation, setHidden } from "./helper.mj
 
 const MAX_TOASTS = 5;
 
-const toastContainer = document.querySelector("#toast-container");
-if (!toastContainer) {
-  throw new Error("Add toast container to html");
+let toastContainer = null;
+
+let setupDone = false;
+function setupToasts() {
+  if (setupDone) {
+    return;
+  }
+  setupDone = true;
+
+  toastContainer = document.querySelector("#toast-container");
+  if (!toastContainer) {
+    throw new Error("Add toast container to html");
+  }
 }
 
 /**
@@ -15,6 +25,8 @@ if (!toastContainer) {
  * @returns {HTMLElement}
  */
 export function AddToast(title, body, type = "info", lifetime = 5000) {
+  setupToasts();
+
   let isRemoved = false;
   const toast = document.createElement("div");
 
@@ -68,25 +80,53 @@ export function AddToast(title, body, type = "info", lifetime = 5000) {
   // Remove from DOM
   let timeout = null;
   if (lifetime !== -1) {
-    timeout = setTimeout(removeThisToast, lifetime);
+    timeout = setTimeout(() => removeThisToast(), lifetime);
   }
 
-  toast.addEventListener("touchstart", () => {
+  // Slide to close
+  let firstTouch = null;
+  let lastOffset = null;
+  let velocity = 0;
+
+  toast.addEventListener("touchstart", e => {
+    firstTouch = e.touches[0];
+    lastOffset = null;
+    velocity = 0;
+
     clearTimeout(timeout);
-  });
+  }, { passive: true });
+
+  toast.addEventListener("touchmove", e => {
+    const touch = Array.from(e.touches).find(t => t.identifier === firstTouch.identifier);
+    let offsetX = touch.pageX - firstTouch.pageX;
+
+    if (lastOffset != null) {
+      velocity = offsetX - lastOffset;
+    }
+    lastOffset = offsetX;
+    
+    toast.style.left = `${offsetX}px`;
+  }, { passive: true });
+
   toast.addEventListener("touchend", () => {
-    if (lifetime !== -1) {
-      timeout = setTimeout(removeThisToast, lifetime);
+    if (lastOffset + velocity * 6 > 250) {
+      removeThisToast();
+    }
+    else {
+      toast.style.left = "";
+      if (lifetime !== -1) {
+        timeout = setTimeout(() => removeThisToast(), lifetime);
+      }
     }
   });
 
-  function removeThisToast() {
+  function removeThisToast(animateRemoved = true) {
     if (isRemoved) {
       return;
     }
 
     isRemoved = true;
-    removeToast(toast);
+    removeToast(toast, animateRemoved);
   }
 
   return toast;
@@ -99,6 +139,8 @@ export function AddToast(title, body, type = "info", lifetime = 5000) {
  * @param {string | undefined} type 
  */
 export function editToast(toast, title, body, type, lifetime = -1) {
+  setupToasts();
+
   if (title != undefined) {
     const titleSpan = toast.querySelector(".title");
     titleSpan.textContent = title;
@@ -134,7 +176,11 @@ export function editToast(toast, title, body, type, lifetime = -1) {
   }
 }
 
-function removeToast(toast) {
+function removeToast(toast, animateRemoved = true) {
+  setupToasts();
+
+  const delay = animateRemoved ? 400 : 0;
+
   toast.isRemoved = true;
   toast.style.animation = "";
   replayAnimation(toast);
@@ -154,5 +200,5 @@ function removeToast(toast) {
       otherToast.style.animation = "slide-down 400ms";
       replayAnimation(otherToast);
     }
-  }, 400);
+  }, delay);
 }
