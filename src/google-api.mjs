@@ -28,7 +28,9 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.app.created",
 ].join(" ");
 
-const tokenStorageLocation = "my-access-token";
+const LOCAL_STORAGE_PREFIX = "com.tc5550.medicine_reminder.";
+const LS_CONSENT = LOCAL_STORAGE_PREFIX + "consent-done";
+const LS_TOKEN = LOCAL_STORAGE_PREFIX + "my-access-token";
 
 export function GoogleCalendarHandler() {
   this.calendarId = null;
@@ -48,13 +50,13 @@ export function GoogleCalendarHandler() {
 
     isAuthed = false;
     window.gapi.client.setToken('');
-    localStorage.removeItem(tokenStorageLocation);  
+    localStorage.removeItem(LS_TOKEN);
 
     this.onReAuth?.(result);
   };
 
   this.hasAuthorizedBefore = function() {
-    const storedToken = localStorage.getItem(tokenStorageLocation);
+    const storedToken = localStorage.getItem(LS_TOKEN);
     if (!storedToken) {
       return false;
     }
@@ -81,7 +83,7 @@ export function GoogleCalendarHandler() {
       }
 
       const handleAuthClick = async () => {
-        const storedToken = localStorage.getItem(tokenStorageLocation);
+        const storedToken = localStorage.getItem(LS_TOKEN);
         if (storedToken) {
           try {
             const token = JSON.parse(storedToken).access_token;
@@ -94,25 +96,30 @@ export function GoogleCalendarHandler() {
             return;
           }
           catch (e) {
+            reject(e);
             AddToast("Unknown error", stringifyError(e), "error");
             console.error(e);
+            localStorage.removeItem(LS_TOKEN);
+            return;
           }
         }
 
         this.tokenClient.callback = async (resp) => {
           if (resp.error !== undefined) {
             console.error("Here", resp);
-            throw (resp);
+            // throw (resp);
+            reject(resp);
+            return;
           }
 
           const tokenData = window.gapi.client.getToken();
-          localStorage.setItem(tokenStorageLocation, JSON.stringify(tokenData));
-          localStorage.setItem("consent-done", "true");
+          localStorage.setItem(LS_TOKEN, JSON.stringify(tokenData));
+          localStorage.setItem(LS_CONSENT, "true");
 
           onAuthDoneWrapper();
         };
         
-        if (window.gapi.client.getToken() === null && localStorage.getItem("consent-done") !== "true") {
+        if (window.gapi.client.getToken() === null && localStorage.getItem(LS_CONSENT) !== "true") {
           // Prompt the user to select a Google Account and ask for consent to share their data
           // when establishing a new session.
           this.tokenClient.requestAccessToken({prompt: 'consent'});
@@ -135,7 +142,8 @@ export function GoogleCalendarHandler() {
     if (token !== null) {
       window.google.accounts.oauth2.revoke(token.access_token);
       window.gapi.client.setToken('');
-      localStorage.removeItem(tokenStorageLocation);
+      localStorage.removeItem(LS_TOKEN);
+      localStorage.removeItem(LS_CONSENT);
     }
   }
 
@@ -187,6 +195,28 @@ export function GoogleCalendarHandler() {
 
       insertGoogleScripts(gapiLoaded, gsiLoaded, onLoadError, onLoadError);
     });
+  }
+
+  this.canListCalendars = function() {
+    if (!this.isReady()) {
+      return false;
+    }
+
+    try {
+      const storedToken = localStorage.getItem(LS_TOKEN);
+      const tokenResponse = JSON.parse(storedToken);
+
+      if (tokenResponse && tokenResponse.access_token) {
+        if (window.google.accounts.oauth2.hasGrantedAnyScope(tokenResponse, "https://www.googleapis.com/auth/calendar.calendarlist.readonly")) {
+          return true;
+        }
+      }
+    }
+    catch {
+      return false;
+    }
+
+    return false;
   }
 
   this.isEventReminder = function(event) {

@@ -87,10 +87,12 @@
       <div id="calendar-screen" class="fullscreen-center hidden">
         <h2>Select a calendar</h2>
         <p>Choose which calendar reminders will be added to.</p>
-        <div class="calendar-list-loading hidden">
-          <div class="spinner"></div>
+        <div class="calendar-list-wrapper">
+          <div class="calendar-list"></div>
+          <div class="calendar-list-loading hidden">
+            <div class="spinner"></div>
+          </div>
         </div>
-        <div class="calendar-list"></div>
         <button class="continue-button theme-button">Continue</button>
         <button class="secondary-button refresh">Refresh list</button>
     
@@ -140,10 +142,15 @@
             <span>Expires</span>
             <span>Renew in</span>
           </div>
-          <div class="all-reminders-loading hidden">
-            <div class="spinner"></div>
+          <div class="all-reminders-wrapper">
+            <div class="all-reminders"></div>
+            <div class="all-reminders-loading hidden">
+              <div class="spinner"></div>
+            </div>
           </div>
-          <div class="all-reminders"></div>
+
+          <button class="secondary-button sign-out">Sign out</button>
+          <button class="secondary-button change-calendar">Change calendar</button>
         </div>
       </div>
 

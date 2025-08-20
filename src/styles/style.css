@@ -62,6 +62,24 @@
   padding-bottom: 15vh;
 }
 
+.calendar-list-wrapper {
+  position: relative;
+  max-height: 50%;
+}
+
+.calendar-list-loading {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25em;
+}
+
+.calendar-list-loading .spinner {
+  font-size: 0.75em;
+}
+
 #calendar-screen .calendar-list,
 #calendar-screen .calendar-list-loading {
   background: rgba(255, 255, 255, 0.05);
@@ -73,19 +91,10 @@
   flex-direction: column;
   gap: 0.25em;
   width: 100%;
-  height: 50%;
+  height: 100%;
   padding: 0.5em;
 
   overflow-y: auto;
-}
-
-#calendar-screen .calendar-list-loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  width: 100%;
-  height: 50%;
 }
 
 #calendar-screen .calendar-list .list-item {
@@ -325,10 +334,17 @@
   font-weight: bold;
 }
 
+.all-reminders-wrapper {
+  position: relative;
+}
+
 .all-reminders-loading {
+  position: absolute;
+  inset: 0;
+
   display: flex;
   justify-content: center;
-  padding: 1em;
+  padding-top: 0.25em;
 }
 
 .all-reminders-loading .spinner {
