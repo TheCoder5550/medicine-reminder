@@ -6,7 +6,7 @@ import { AddToast, editToast } from "./toast.mjs";
 import { formatDuration, formatGoogleDate, getFullYear, hideElement, isMobile, isStandalone, makeInvisible, makeVisible, removeAllChildren, setHidden, showElement, stringifyError } from "./helper.mjs";
 import { decodeMedicineData } from "./medicine-decoding.mjs";
 import { getEventViewUrl, GoogleCalendarHandler } from "./google-api.mjs";
-import { getActiveSlide, getAllSlides, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+import { getActiveSlide, getAllSlides, onboardEvents, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
 import { createSlideOverlays } from "./slide-overlay.mjs";
 
 const LOCAL_STORAGE_PREFIX = "com.tc5550.medicine_reminder.";
@@ -59,6 +59,9 @@ let timeout = null;
 let lastScan = null;
 let allReminders = [];
 
+onboardEvents.on("showSlide", onShowSlide);
+onboardEvents.on("exitSlide", onExitSlide);
+
 const googleCalendar = new GoogleCalendarHandler();
 await googleCalendar.init().catch(e => AddToast("Application error", stringifyError(e), "error"));
 googleCalendar.calendarId = localStorage.getItem(LS_CALENDAR_ID);
@@ -68,7 +71,7 @@ googleCalendar.onReAuth = () => {
 };
 
 document.querySelector("#authorize_button").addEventListener("click", async () => {
-  showElement(loaderScreen);
+  // showElement(loaderScreen);
 
   googleCalendar.authorize()
     .then(async () => {
@@ -89,9 +92,9 @@ document.querySelector("#authorize_button").addEventListener("click", async () =
       console.error(e);
       showLoginSingle();
     })
-    .finally(() => {
-      hideElement(loaderScreen);
-    })
+    // .finally(() => {
+    //   hideElement(loaderScreen);
+    // })
 });
 
 hideElement(document.querySelector("#signout_button"));
@@ -209,7 +212,8 @@ calendarScreen.querySelector(".continue-button").addEventListener("click", () =>
 
 calendarScreen.querySelector(".skip-button").addEventListener("click", () => {
   if (localStorage.getItem(LS_CALENDAR_ID) == null) {
-    localStorage.setItem(LS_CALENDAR_ID, "primary")
+    googleCalendar.calendarId = "primary";
+    localStorage.setItem(LS_CALENDAR_ID, googleCalendar.calendarId);
   }
 });
 
@@ -232,13 +236,11 @@ scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click",
 
   hideElement(document.querySelector("#signout_button"));
   showFirstSlideInstant();
-  onShowSlide();
 });
 
 scannerScreen.querySelector(".info-overlay .change-calendar").addEventListener("click", () => {
   // localStorage.removeItem(LS_CALENDAR_ID);
   showSlideInstant(calendarScreen);
-  onShowSlide();
 });
 
 document.querySelector(".restart-camera").addEventListener("click", restartCamera);
@@ -287,9 +289,6 @@ if (googleCalendar.hasAuthorizedBefore()) {
         console.log("No slides left");
         onboardDone();
       }
-      else {
-        onShowSlide();
-      }
     })
 }
 else {
@@ -299,9 +298,6 @@ else {
     // if (googleCalendar.hasAuthorizedBefore()) {
     //   document.querySelector("#authorize_button").click();
     // }
-  }
-  else {
-    onShowSlide();
   }
 }
 
@@ -329,11 +325,31 @@ function handleNextSlide() {
   if (!showNextSlide()) {
     onboardDone();
   }
-  onShowSlide();
 }
 
-function onShowSlide() {
-  switch (getActiveSlide()) {
+async function onShowSlide(slide, prev) {
+  console.log("Showing?:", slide);
+
+  switch (slide) {
+    case cameraRequestScreen: {
+      if (!navigator.permissions || !navigator.permissions.query) {
+        setDisabled(cameraRequestScreen, false);
+        return;
+      }
+
+      const result = await navigator.permissions.query({name: 'camera'})
+        .then(async function(result) {
+          return result.state == 'granted';
+        })
+        .catch(e => {
+          AddToast("Camera error", stringifyError(e), "error");
+          console.error(e);
+          return false;
+        });
+
+      setDisabled(cameraRequestScreen, result);
+      return;
+    }
     case loginScreen: {
       if (googleCalendar.hasAuthorizedBefore()) {
         document.querySelector("#authorize_button").click();
@@ -341,11 +357,13 @@ function onShowSlide() {
       return;
     }
     case calendarScreen: {
-      updateCalendarList();
+      await updateCalendarList();
       return;
     }
   }
 }
+
+function onExitSlide() {}
 
 // if (!localStorage.getItem(LS_ONBOARDING)) {
 //   showSlideInstant(0);
@@ -364,29 +382,6 @@ function onboardDone() {
   showSlideInstant(null);
   startScanner();
 }
-
-// function showCameraRequestScreen() {
-//   const show = () => {
-//     showElement(cameraRequestScreen);
-//     cameraRequestScreen.classList.add("slide-in");
-//   }
-
-//   if (!navigator.permissions || !navigator.permissions.query) {
-//     show();
-//     return;
-//   }
-
-//   navigator.permissions.query({name: 'camera'})
-//     .then(async function(result) {
-//       if (result.state == 'granted') {
-//         cameraRequestScreen.querySelector(".skip-button").click();
-//       }
-//       else {
-//         show();
-//       }
-//     })
-//     .catch(showCameraError);
-// }
 
 function showLoginSingle() {
   if (getActiveSlide() == loginScreen) {
@@ -448,6 +443,12 @@ async function startCamera() {
   };
 
   return new Promise((resolve, reject) => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      reject("Context not secure. Cannot access camera");
+      setVideoEnabledDOM(false);
+      return;
+    }
+
     navigator.mediaDevices.getUserMedia(constraints)
       .then(stream => {
         stream.getVideoTracks().forEach(track => {
@@ -638,7 +639,7 @@ function updateCalendarList() {
   showElement(calendarScreen.querySelector(".calendar-list-loading"));
   makeInvisible(calendarScreen.querySelector(".calendar-list"));
 
-  new Promise((resolve) => {
+  return new Promise((resolve) => {
     if (!googleCalendar.canListCalendars()) {
       updateCalendarListDOM([]);
       AddToast("No list available", "You denied permission to view your calendars so you have to create a new calendar", "info");

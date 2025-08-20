@@ -7,6 +7,47 @@ let slides = [];
 const runningTimeouts = [];
 let currentSlideIndex = null;
 
+const callbacks = {
+  "exitSlide": [],
+  "showSlide": [],
+  "end": [],
+};
+
+export const onboardEvents = {
+  on: (eventName, callback) => {
+    callbacks[eventName].push(callback);
+  },
+  off: (eventName, callback) => {
+    const index = callbacks[eventName]?.indexOf(callback);
+    if (index != null && index != -1) {
+      callbacks[eventName].splice(index, 1)
+    }
+  }
+}
+
+async function triggerCallback(eventName, ...args) {
+  for (const callback of callbacks[eventName]) {
+    const promise = callback(...args);
+    const result = promise && promise.then ?
+      await promise.catch(() => false) :
+      promise;
+
+    if (result === false) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function onEnd(nextExists) {
+  if (nextExists) {
+    return;
+  }
+
+  return await triggerCallback("end");
+}
+
 export function setupOnboard() {
   const onboardContainer = document.querySelector("#onboard");
   if (!onboardContainer) {
@@ -60,11 +101,14 @@ export function showFirstSlideInstant() {
     return true;
   }
 
+  // onEnd(false);
   return false;
 }
 
 export function showPrevSlide() {
-  return showSlideRelative(-1);
+  const next = showSlideRelative(-1);
+  onEnd(next);
+  return next;
 }
 
 export function showNextSlide() {
@@ -72,76 +116,102 @@ export function showNextSlide() {
 }
 
 function showSlideRelative(inc = 1) {
-  if (currentSlideIndex == null) {
+  const nextIndex = getNextIndex(inc);
+  if (nextIndex == null || nextIndex == currentSlideIndex) {
     return false;
   }
 
-  const nextIndex = currentSlideIndex + inc;
-
-  if (nextIndex >= slides.length || nextIndex < 0) {
-    return false;
-  }
-
-  const slideData = getSlide(nextIndex);
-  if (slideData && slideData.slide && isDisabled(slideData.slide)) {
-    const skipInc = inc + Math.sign(inc);
-    if (skipInc == inc) {
-      return true;
-    }
-
-    return showSlideRelative(skipInc);
-  }
-
-  showSlide(nextIndex, inc > 0);
-  return true;
+  const ref = inc > 0 ? "next" : "prev";
+  return showSlide(ref, inc > 0);
 }
 
-export function showSlide(ref, forward = true) {
+export async function showSlide(ref, forward = true) {
+  const slides = await getPrevAndNextSlides(ref);
+  if (!slides) {
+    return false;
+  }
+  const prevSlide = slides.prev;
+  const nextSlide = slides.next;
+
   clearTimeouts();
 
-  const slideData = getSlide(ref);
-
   if (forward) {
-    if (slideData) {
-      slideAbove(slideData.slide, forward);
+    if (nextSlide) {
+      slideAbove(nextSlide.slide, forward);
     }
 
-    if (currentSlideIndex != null) {
-      const oldSlide = slides[currentSlideIndex];
-      slideBelow(oldSlide, forward);
+    if (prevSlide) {
+      slideBelow(prevSlide.slide, forward);
     }
   }
   else {
-    if (slideData) {
-      slideBelow(slideData.slide, forward);
+    if (nextSlide) {
+      slideBelow(nextSlide.slide, forward);
     }
 
-    if (currentSlideIndex != null) {
-      const oldSlide = slides[currentSlideIndex];
-      slideAbove(oldSlide, forward);
+    if (prevSlide) {
+      slideAbove(prevSlide.slide, forward);
     }
   }
 
-  currentSlideIndex = slideData?.index;
+  currentSlideIndex = nextSlide?.index ?? null;
+  return true;
 }
 
-export function showSlideInstant(ref) {
+export async function showSlideInstant(ref) {
+  const slides = await getPrevAndNextSlides(ref);
+  if (!slides) {
+    return false;
+  }
+  const prevSlide = slides.prev;
+  const nextSlide = slides.next;
+
   clearTimeouts();
 
-  if (currentSlideIndex != null) {
-    const oldSlide = slides[currentSlideIndex];
-    hideElement(oldSlide);
+  if (prevSlide) {
+    hideElement(prevSlide.slide);
   }
 
-  const slideData = getSlide(ref);
-  if (slideData != null) {
-    slideData.slide.style.zIndex = "20";
-    slideData.slide.style.transition = "";
-    slideData.slide.style.transform = "";
-    showElement(slideData.slide);
+  if (nextSlide) {
+    nextSlide.slide.style.zIndex = "20";
+    nextSlide.slide.style.transition = "";
+    nextSlide.slide.style.transform = "";
+    showElement(nextSlide.slide);
   }
 
-  currentSlideIndex = slideData?.index;
+  currentSlideIndex = nextSlide?.index ?? null;
+  return true;
+}
+
+async function getPrevAndNextSlides(nextRef) {
+  const prevSlide = getSlide(currentSlideIndex);
+  if (!(await triggerCallback("exitSlide", prevSlide?.slide ?? null))) {
+    return;
+  }
+
+  let nextSlide = getSlide(nextRef);
+  let i = 0;
+  while (true) {
+    if (!(await triggerCallback("showSlide", nextSlide?.slide ?? null, prevSlide?.slide ?? null))) {
+      return;
+    }
+    // Slides can be disabled in "showSlide" callback and "nextRef" might point
+    // to another slide
+    const potNextSlide = getSlide(nextRef);
+    const change = potNextSlide?.index != nextSlide?.index;
+    nextSlide = potNextSlide;
+
+    if (!change) {
+      break;
+    }
+
+    i++;
+    if (i > 1e3) {
+      throw new Error("while true")
+    }
+  }
+
+  return { prev: prevSlide, next: nextSlide };
 }
 
 function slideBelow(slide, forward) {
@@ -221,7 +291,39 @@ function getSlide(ref) {
     };
   }
 
+  if (ref == "next") {
+    return getSlide(getNextIndex(1));
+  }
+
+  if (ref == "prev") {
+    return getSlide(getNextIndex(-1));
+  }
+
   throw new Error("Invalid slide: Unknown")
+}
+
+function getNextIndex(direction = 1) {
+  if (currentSlideIndex == null) {
+    return null;
+  }
+
+  if (direction == 0) {
+    return currentSlideIndex;
+  }
+
+  const nextIndex = currentSlideIndex + direction;
+
+  if (nextIndex >= slides.length || nextIndex < 0) {
+    return null;
+  }
+
+  const slideData = getSlide(nextIndex);
+  if (slideData && slideData.slide && isDisabled(slideData.slide)) {
+    const skipInc = direction + Math.sign(direction);
+    return getNextIndex(skipInc);
+  }
+
+  return nextIndex;
 }
 
 function isDisabled(ref) {
