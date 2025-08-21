@@ -7,11 +7,7 @@
   position: absolute;
   top: calc(var(--sat) + 1rem);
   left: 1rem;
-  
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5em;
+
   text-decoration: none;
 }
 
@@ -62,6 +58,11 @@
   padding-bottom: 15vh;
 }
 
+#authorize_button,
+#signout_button {
+  width: 150px;
+}
+
 .calendar-list-wrapper {
   position: relative;
   max-height: 50%;
@@ -73,7 +74,7 @@
 
   display: flex;
   justify-content: center;
-  padding-top: 0.25em;
+  align-items: center;
 }
 
 .calendar-list-loading .spinner {

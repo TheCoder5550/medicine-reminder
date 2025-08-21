@@ -105,9 +105,12 @@ export function GoogleCalendarHandler() {
         }
 
         this.tokenClient.callback = async (resp) => {
+          if (resp.error == "access_denied") {
+            reject("You denied access to your Google Calendar. Allow at least one scope if you want to connect your Google Calendar.");
+            return;
+          }
+
           if (resp.error !== undefined) {
-            console.error("Here", resp);
-            // throw (resp);
             reject(resp);
             return;
           }
@@ -133,17 +136,18 @@ export function GoogleCalendarHandler() {
     })
   }
 
-  this.signOut = function() {
+  this.signOut = async function() {
     if (!this.isReady()) {
       throw new Error("Google API has not been initialized");
     }
 
     const token = window.gapi.client.getToken();
     if (token !== null) {
-      window.google.accounts.oauth2.revoke(token.access_token);
-      window.gapi.client.setToken('');
+      await window.google.accounts.oauth2.revoke(token.access_token);
+      await window.gapi.client.setToken('');
       localStorage.removeItem(LS_TOKEN);
       localStorage.removeItem(LS_CONSENT);
+      isAuthed = false;
     }
   }
 

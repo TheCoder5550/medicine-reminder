@@ -6,7 +6,7 @@ import { AddToast, editToast } from "./toast.mjs";
 import { formatDuration, formatGoogleDate, getFullYear, hideElement, isMobile, isStandalone, makeInvisible, makeVisible, removeAllChildren, setHidden, showElement, stringifyError } from "./helper.mjs";
 import { decodeMedicineData } from "./medicine-decoding.mjs";
 import { getEventViewUrl, GoogleCalendarHandler } from "./google-api.mjs";
-import { getActiveSlide, getAllSlides, onboardEvents, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+import { getActiveSlide, getAllSlides, getFirstSlide, onboardEvents, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
 import { createSlideOverlays } from "./slide-overlay.mjs";
 
 const LOCAL_STORAGE_PREFIX = "com.tc5550.medicine_reminder.";
@@ -71,18 +71,9 @@ googleCalendar.onReAuth = () => {
 };
 
 document.querySelector("#authorize_button").addEventListener("click", async () => {
-  // showElement(loaderScreen);
-
   googleCalendar.authorize()
     .then(async () => {
       showElement(document.querySelector("#signout_button"));
-
-      // if (googleCalendar.calendarId == null) {
-      //   showSlideInstant(calendarScreen);
-      //   hideElement(calendarScreen.querySelector(".back-button"));
-      //   return;
-      // }
-
       handleNextSlide();
     })
     .catch(e => {
@@ -92,13 +83,14 @@ document.querySelector("#authorize_button").addEventListener("click", async () =
       console.error(e);
       showLoginSingle();
     })
-    // .finally(() => {
-    //   hideElement(loaderScreen);
-    // })
 });
 
 hideElement(document.querySelector("#signout_button"));
 document.querySelector("#signout_button").addEventListener("click", () => {
+  if (!confirm("Are you sure you want to sign out?")) {
+    return;
+  }
+
   googleCalendar.signOut();
   hideElement(document.querySelector("#signout_button"));
 });
@@ -190,7 +182,7 @@ calendarScreen.querySelector(".continue-button").addEventListener("click", () =>
         googleCalendar.calendarId = result.id;
         localStorage.setItem(LS_CALENDAR_ID, googleCalendar.calendarId);
         
-        onboardDone();
+        handleNextSlide();
       })
       .catch(e => {
         editToast(toast, "Could not create calendar", stringifyError(e), "error");
@@ -207,7 +199,7 @@ calendarScreen.querySelector(".continue-button").addEventListener("click", () =>
   localStorage.setItem(LS_CALENDAR_ID, googleCalendar.calendarId);
   calendarScreen.querySelector(".continue-button").disabled = false;
   
-  onboardDone();
+  handleNextSlide();
 });
 
 calendarScreen.querySelector(".skip-button").addEventListener("click", () => {
@@ -220,8 +212,12 @@ calendarScreen.querySelector(".skip-button").addEventListener("click", () => {
 calendarScreen.querySelector(".refresh").addEventListener("click", updateCalendarList);
 
 // Scanner screen
-scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click", () => {
-  googleCalendar.signOut();
+scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click", async () => {
+  if (!confirm("Are you sure you want to sign out?")) {
+    return;
+  }
+
+  await googleCalendar.signOut();
   localStorage.removeItem(LS_CALENDAR_ID);
   localStorage.removeItem(LS_ONBOARDING);
 
@@ -239,7 +235,12 @@ scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click",
 });
 
 scannerScreen.querySelector(".info-overlay .change-calendar").addEventListener("click", () => {
-  // localStorage.removeItem(LS_CALENDAR_ID);
+  setDisabled(welcomeScreen, true);
+  setDisabled(installScreen, true);
+  setDisabled(cameraRequestScreen, true);
+  setDisabled(loginScreen, true);
+  setDisabled(calendarScreen, false);
+
   showSlideInstant(calendarScreen);
 });
 
@@ -273,34 +274,24 @@ const hasChoosenCalendar = googleCalendar.calendarId != null;
 setDisabled(welcomeScreen, isOnboardDone);
 setDisabled(installScreen, isOnboardDone || isStandalone() || !isMobile());
 setDisabled(cameraRequestScreen, isOnboardDone);
-setDisabled(loginScreen, googleCalendar.hasAuthorizedBefore());
+setDisabled(loginScreen, false && isOnboardDone/* && googleCalendar.hasAuthorizedBefore()*/);
 setDisabled(calendarScreen, isOnboardDone && hasChoosenCalendar);
 
-if (googleCalendar.hasAuthorizedBefore()) {
-  googleCalendar.authorize()
-    .catch(e => {
-      if (e.status != 401) {
-        AddToast("Sign-in error", stringifyError(e), "error");
-      }
-      console.error(e);
-    })
-    .finally(() => {
-      if (!showFirstSlideInstant()) {
-        console.log("No slides left");
-        onboardDone();
-      }
-    })
-}
-else {
-  if (!showFirstSlideInstant()) {
-    console.log("No slides left");
-    onboardDone();
-    // if (googleCalendar.hasAuthorizedBefore()) {
-    //   document.querySelector("#authorize_button").click();
-    // }
-  }
-}
+// if (googleCalendar.hasAuthorizedBefore()) {
+//   await googleCalendar.authorize()
+//     .catch(e => {
+//       if (e.status != 401) {
+//         AddToast("Sign-in error", stringifyError(e), "error");
+//       }
+//       console.error(e);
+//     })
+// }
 
+await showFirstSlideInstant();
+if (!getActiveSlide()) {
+  console.log("No slides left");
+  onSlideEnd();
+}
 
 for (const slide of getAllSlides()) {
   const skipButton = slide.querySelector(".skip-button");
@@ -321,14 +312,29 @@ for (const slide of getAllSlides()) {
   }
 }
 
-function handleNextSlide() {
-  if (!showNextSlide()) {
-    onboardDone();
+async function handleNextSlide() {
+  if (!await showNextSlide()) {
+    // onboardDone();
   }
 }
 
 async function onShowSlide(slide, prev) {
-  console.log("Showing?:", slide);
+  console.log("From", prev, "To maybe:", slide);
+
+  if (prev != null && slide == null) {
+    console.log("Onboard done");
+    onSlideEnd();
+    return;
+  }
+
+  // Hide back button if this is the first active slide
+  if (slide) {
+    const isFirstSlide = getFirstSlide() === slide;
+    const backButton = slide.querySelector(".back-button");
+    if (backButton) {
+      setHidden(backButton, isFirstSlide);
+    }
+  }
 
   switch (slide) {
     case cameraRequestScreen: {
@@ -351,13 +357,34 @@ async function onShowSlide(slide, prev) {
       return;
     }
     case loginScreen: {
+      if (prev == calendarScreen) {
+        return;
+      }
+
       if (googleCalendar.hasAuthorizedBefore()) {
-        document.querySelector("#authorize_button").click();
+        await googleCalendar.authorize()
+          .then(async () => {
+            showElement(document.querySelector("#signout_button"));
+            setDisabled(loginScreen, true);
+          })
+          .catch(e => {
+            if (e.status != 401) {
+              AddToast("Sign-in error", stringifyError(e), "error");
+            }
+            console.error(e);
+            setDisabled(loginScreen, false);
+          })
       }
       return;
     }
     case calendarScreen: {
-      await updateCalendarList();
+      const list = calendarScreen.querySelector(".calendar-list");
+      if (list.children.length === 0) {
+        await updateCalendarList();
+      }
+      else {
+        updateCalendarList();
+      }
       return;
     }
   }
@@ -365,32 +392,18 @@ async function onShowSlide(slide, prev) {
 
 function onExitSlide() {}
 
-// if (!localStorage.getItem(LS_ONBOARDING)) {
-//   showSlideInstant(0);
-// }
-// else {
-//   if (googleCalendar.hasAuthorizedBefore()) {
-//     document.querySelector("#authorize_button").click();
-//   }
-//   else {
-//     showLoginSingle();
-//   }
-// }
-
-function onboardDone() {
+function onSlideEnd() {
   localStorage.setItem(LS_ONBOARDING, true);
-  showSlideInstant(null);
+  // showSlideInstant(null);
   startScanner();
 }
 
 function showLoginSingle() {
   if (getActiveSlide() == loginScreen) {
-    console.log("nothing")
     return;
   }
   
   showSlideInstant(loginScreen);
-  // hideElement(loginScreen.querySelector(".back-button"));
 }
 
 function renderFrame() {
@@ -685,7 +698,7 @@ function updateCalendarListDOM(calendars) {
     radio.value = calendar.id;
     radio.defaultChecked = prevId == null ?
       false :
-      calendar.id == prevId;
+      calendar.id == prevId || (calendar.primary && prevId === "primary");
     radio.addEventListener("change", () => {
       if (radio.checked) {
         calendarScreen.querySelector(".continue-button").disabled = false;
@@ -776,6 +789,9 @@ function updateAllReminders() {
         AddToast("Could not get reminders", stringifyError(e), "error");
       }
       console.error(e);
+
+      allReminders = [];
+      updateAllRemindersDOM();
     })
     .finally(() => {
       hideElement(document.querySelector(".all-reminders-loading"));

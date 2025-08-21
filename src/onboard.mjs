@@ -63,6 +63,18 @@ export function setupOnboard() {
   onboardContainer.remove();
 }
 
+export function getFirstSlide() {
+  for (let i = 0; i < slides.length; i++) {
+    if (isDisabled(i)) {
+      continue;
+    }
+
+    return getSlide(i)?.slide;
+  }
+
+  return null;
+}
+
 export function getActiveSlide() {
   const slideData = getSlide(currentSlideIndex);
   if (slideData == null) {
@@ -91,38 +103,29 @@ export function setDisabled(ref, disabled) {
   }
 }
 
-export function showFirstSlideInstant() {
-  for (let i = 0; i < slides.length; i++) {
-    if (isDisabled(i)) {
-      continue;
-    }
-
-    showSlideInstant(i);
-    return true;
-  }
-
-  // onEnd(false);
-  return false;
+export async function showFirstSlideInstant() {
+  return await showSlideInstant("first");
 }
 
-export function showPrevSlide() {
-  const next = showSlideRelative(-1);
+export async function showPrevSlide() {
+  return await showSlideRelative(-1);
+}
+
+export async function showNextSlide() {
+  const next = await showSlideRelative(1);
   onEnd(next);
   return next;
 }
 
-export function showNextSlide() {
-  return showSlideRelative(1);
-}
-
-function showSlideRelative(inc = 1) {
-  const nextIndex = getNextIndex(inc);
-  if (nextIndex == null || nextIndex == currentSlideIndex) {
-    return false;
-  }
+async function showSlideRelative(inc = 1) {
+  // const nextIndex = getNextIndex(inc);
+  // console.log(nextIndex, currentSlideIndex, inc);
+  // if (nextIndex == null || nextIndex == currentSlideIndex) {
+  //   return false;
+  // }
 
   const ref = inc > 0 ? "next" : "prev";
-  return showSlide(ref, inc > 0);
+  return await showSlide(ref, inc > 0);
 }
 
 export async function showSlide(ref, forward = true) {
@@ -183,9 +186,36 @@ export async function showSlideInstant(ref) {
   return true;
 }
 
+function disableAllButtons(slideData) {
+  if (!slideData || !slideData.slide) {
+    return;
+  }
+
+  const buttonState = {};
+  for (const button of slideData.slide.querySelectorAll("button")) {
+    buttonState[button] = button.disabled;
+    button.disabled = true;
+  }
+
+  return { slideData, buttonState };
+}
+
+function enableAllButtons(disableReturn) {
+  if (!disableReturn || !disableReturn.slideData || !disableReturn.slideData.slide || !disableReturn.buttonState) {
+    return;
+  }
+
+  for (const button of disableReturn.slideData.slide.querySelectorAll("button")) {
+    button.disabled = disableReturn.buttonState[button] ?? true;
+  }
+}
+
 async function getPrevAndNextSlides(nextRef) {
   const prevSlide = getSlide(currentSlideIndex);
-  if (!(await triggerCallback("exitSlide", prevSlide?.slide ?? null))) {
+  const bs = disableAllButtons(prevSlide);
+  const exitResult = await triggerCallback("exitSlide", prevSlide?.slide ?? null);
+  if (!exitResult) {
+    enableAllButtons(bs);
     return;
   }
 
@@ -193,6 +223,7 @@ async function getPrevAndNextSlides(nextRef) {
   let i = 0;
   while (true) {
     if (!(await triggerCallback("showSlide", nextSlide?.slide ?? null, prevSlide?.slide ?? null))) {
+      enableAllButtons(bs);
       return;
     }
     // Slides can be disabled in "showSlide" callback and "nextRef" might point
@@ -210,6 +241,8 @@ async function getPrevAndNextSlides(nextRef) {
       throw new Error("while true")
     }
   }
+
+  enableAllButtons(bs);
 
   return { prev: prevSlide, next: nextSlide };
 }
@@ -297,6 +330,10 @@ function getSlide(ref) {
 
   if (ref == "prev") {
     return getSlide(getNextIndex(-1));
+  }
+
+  if (ref == "first") {
+    return getSlide(getFirstSlide());
   }
 
   throw new Error("Invalid slide: Unknown")
