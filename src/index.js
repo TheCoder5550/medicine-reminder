@@ -217,6 +217,7 @@ scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click",
     return;
   }
 
+  stopCamera();
   await googleCalendar.signOut();
   localStorage.removeItem(LS_CALENDAR_ID);
   localStorage.removeItem(LS_ONBOARDING);
