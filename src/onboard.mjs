@@ -29,7 +29,10 @@ async function triggerCallback(eventName, ...args) {
   for (const callback of callbacks[eventName]) {
     const promise = callback(...args);
     const result = promise && promise.then ?
-      await promise.catch(() => false) :
+      await promise.catch(e => {
+        console.error(e);
+        return false;
+      }) :
       promise;
 
     if (result === false) {
@@ -88,7 +91,13 @@ export function getAllSlides() {
   return slides;
 }
 
-export function setDisabled(ref, disabled) {
+export function setDisabledAll(disabled = true) {
+  for (const slide of slides) {
+    setDisabled(slide, disabled);
+  }
+}
+
+export function setDisabled(ref, disabled = true) {
   const slideData = getSlide(ref);
   if (!slideData) {
     throw new Error("Slide is null");
@@ -108,24 +117,17 @@ export async function showFirstSlideInstant() {
 }
 
 export async function showPrevSlide() {
-  return await showSlideRelative(-1);
+  return await showSlideRelative("prev");
 }
 
 export async function showNextSlide() {
-  const next = await showSlideRelative(1);
+  const next = await showSlideRelative("next");
   onEnd(next);
   return next;
 }
 
-async function showSlideRelative(inc = 1) {
-  // const nextIndex = getNextIndex(inc);
-  // console.log(nextIndex, currentSlideIndex, inc);
-  // if (nextIndex == null || nextIndex == currentSlideIndex) {
-  //   return false;
-  // }
-
-  const ref = inc > 0 ? "next" : "prev";
-  return await showSlide(ref, inc > 0);
+async function showSlideRelative(dir = "next") {
+  return await showSlide(dir, dir === "next");
 }
 
 export async function showSlide(ref, forward = true) {
@@ -144,7 +146,7 @@ export async function showSlide(ref, forward = true) {
     }
 
     if (prevSlide) {
-      slideBelow(prevSlide.slide, forward);
+      slideBelow(prevSlide.slide, forward, !nextSlide);
     }
   }
   else {
@@ -219,37 +221,106 @@ async function getPrevAndNextSlides(nextRef) {
     return;
   }
 
-  let nextSlide = getSlide(nextRef);
-  let i = 0;
-  while (true) {
-    if (!(await triggerCallback("showSlide", nextSlide?.slide ?? null, prevSlide?.slide ?? null))) {
+  let nextIndex = currentSlideIndex;
+  let dir = 1;
+  if (nextRef == "next") {
+    nextIndex++;
+    dir = 1;
+  }
+  else if (nextRef == "prev") {
+    nextIndex--;
+    dir = -1;
+  }
+  else if (nextRef == "first" && nextIndex == null) {
+    nextIndex = 0;
+    dir = 1;
+  }
+  else if (nextRef instanceof HTMLElement) {
+    const index = slides.indexOf(nextRef);
+    if (index === -1) {
+      throw new Error("Invalid slide: Not added");
+    }
+    
+    nextIndex = index;
+    dir = 0;
+  }
+  else {
+    throw new Error("Not supported: " + nextRef + " - " + nextIndex);
+  }
+
+  for (let i = nextIndex; i >= 0 && i < slides.length; i += dir) {
+    if (isDisabled(i)) {
+      if (dir === 0) {
+        enableAllButtons(bs);
+        return;
+      }
+      continue;
+    }
+
+    const answer = {
+      cancel: false,
+      skip: false,
+      end: false,
+    };
+    const canContinue = await triggerCallback(
+      "showSlide",
+      getSlide(i).slide,
+      prevSlide?.slide ?? null,
+      {
+        cancel: () => answer.cancel = true,
+        skip: () => answer.skip = true,
+        end: () => answer.end = true,
+      }
+    );
+    if (answer.end) {
+      break;
+    }
+    if (!canContinue || answer.cancel) {
       enableAllButtons(bs);
       return;
     }
-    // Slides can be disabled in "showSlide" callback and "nextRef" might point
-    // to another slide
-    const potNextSlide = getSlide(nextRef);
-    const change = potNextSlide?.index != nextSlide?.index;
-    nextSlide = potNextSlide;
 
-    if (!change) {
-      break;
+    if (answer.skip || isDisabled(i)) {
+      if (dir === 0) {
+        enableAllButtons(bs);
+        return;
+      }
+      continue;
     }
 
-    i++;
-    if (i > 1e3) {
-      throw new Error("while true")
+    enableAllButtons(bs);
+    return { prev: prevSlide, next: getSlide(i) };
+  }
+
+  const answer = {
+    cancel: false,
+  };
+  const canContinue = await triggerCallback(
+    "showSlide",
+    null,
+    prevSlide?.slide ?? null,
+    {
+      cancel: () => answer.cancel = true,
+      skip: () => {},
+      end: () => {}
     }
+  );
+  if (!canContinue || answer.cancel) {
+    enableAllButtons(bs);
+    return;
   }
 
   enableAllButtons(bs);
-
-  return { prev: prevSlide, next: nextSlide };
+  return { prev: prevSlide, next: null };
 }
 
-function slideBelow(slide, forward) {
+function slideBelow(slide, forward, isLast = false) {
   const from = forward ? "0%" : `-${OLD_SLIDE_MOVE_PERCENTAGE * 100}%`;
-  const to = forward ? `-${OLD_SLIDE_MOVE_PERCENTAGE * 100}%` : "0%";
+  let to = forward ? `-${OLD_SLIDE_MOVE_PERCENTAGE * 100}%` : "0%";
+
+  if (forward && isLast) {
+    to = "-100%";
+  }
 
   slide.style.transition = "";
   slide.style.transform = `translateX(${from})`;
@@ -324,43 +395,11 @@ function getSlide(ref) {
     };
   }
 
-  if (ref == "next") {
-    return getSlide(getNextIndex(1));
-  }
-
-  if (ref == "prev") {
-    return getSlide(getNextIndex(-1));
-  }
-
   if (ref == "first") {
     return getSlide(getFirstSlide());
   }
 
   throw new Error("Invalid slide: Unknown")
-}
-
-function getNextIndex(direction = 1) {
-  if (currentSlideIndex == null) {
-    return null;
-  }
-
-  if (direction == 0) {
-    return currentSlideIndex;
-  }
-
-  const nextIndex = currentSlideIndex + direction;
-
-  if (nextIndex >= slides.length || nextIndex < 0) {
-    return null;
-  }
-
-  const slideData = getSlide(nextIndex);
-  if (slideData && slideData.slide && isDisabled(slideData.slide)) {
-    const skipInc = direction + Math.sign(direction);
-    return getNextIndex(skipInc);
-  }
-
-  return nextIndex;
 }
 
 function isDisabled(ref) {

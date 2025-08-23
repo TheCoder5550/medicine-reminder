@@ -6,7 +6,7 @@ import { AddToast, editToast } from "./toast.mjs";
 import { formatDuration, formatGoogleDate, getFullYear, hideElement, isMobile, isStandalone, makeInvisible, makeVisible, removeAllChildren, setHidden, showElement, stringifyError } from "./helper.mjs";
 import { decodeMedicineData } from "./medicine-decoding.mjs";
 import { getEventViewUrl, GoogleCalendarHandler } from "./google-api.mjs";
-import { getActiveSlide, getAllSlides, getFirstSlide, onboardEvents, setDisabled, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
+import { getActiveSlide, getAllSlides, getFirstSlide, onboardEvents, setDisabled, setDisabledAll, setupOnboard, showFirstSlideInstant, showNextSlide, showPrevSlide, showSlideInstant } from "./onboard.mjs";
 import { createSlideOverlays } from "./slide-overlay.mjs";
 
 const LOCAL_STORAGE_PREFIX = "com.tc5550.medicine_reminder.";
@@ -218,7 +218,7 @@ scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click",
   }
 
   stopCamera();
-  await googleCalendar.signOut();
+  await googleCalendar.signOut().catch(console.error);
   localStorage.removeItem(LS_CALENDAR_ID);
   localStorage.removeItem(LS_ONBOARDING);
 
@@ -236,13 +236,9 @@ scannerScreen.querySelector(".info-overlay .sign-out").addEventListener("click",
 });
 
 scannerScreen.querySelector(".info-overlay .change-calendar").addEventListener("click", () => {
-  setDisabled(welcomeScreen, true);
-  setDisabled(installScreen, true);
-  setDisabled(cameraRequestScreen, true);
-  setDisabled(loginScreen, true);
+  setDisabledAll(true);
   setDisabled(calendarScreen, false);
-
-  showSlideInstant(calendarScreen);
+  showFirstSlideInstant();
 });
 
 document.querySelector(".restart-camera").addEventListener("click", restartCamera);
@@ -319,7 +315,7 @@ async function handleNextSlide() {
   }
 }
 
-async function onShowSlide(slide, prev) {
+async function onShowSlide(slide, prev, handler) {
   console.log("From", prev, "To maybe:", slide);
 
   if (prev != null && slide == null) {
@@ -337,10 +333,12 @@ async function onShowSlide(slide, prev) {
     }
   }
 
+  // handler.restart();
+  // handler.goto(n);
+
   switch (slide) {
     case cameraRequestScreen: {
       if (!navigator.permissions || !navigator.permissions.query) {
-        setDisabled(cameraRequestScreen, false);
         return;
       }
 
@@ -354,7 +352,9 @@ async function onShowSlide(slide, prev) {
           return false;
         });
 
-      setDisabled(cameraRequestScreen, result);
+      if (result) {
+        handler.skip();
+      }
       return;
     }
     case loginScreen: {
@@ -363,18 +363,22 @@ async function onShowSlide(slide, prev) {
       }
 
       if (googleCalendar.hasAuthorizedBefore()) {
-        await googleCalendar.authorize()
+        const result = await googleCalendar.authorize()
           .then(async () => {
-            showElement(document.querySelector("#signout_button"));
-            setDisabled(loginScreen, true);
+            return true;
           })
           .catch(e => {
             if (e.status != 401) {
               AddToast("Sign-in error", stringifyError(e), "error");
             }
             console.error(e);
-            setDisabled(loginScreen, false);
-          })
+            return false;
+          });
+        
+        setHidden(document.querySelector("#signout_button"), !result);
+        if (result) {
+          handler.skip();
+        }
       }
       return;
     }
@@ -404,6 +408,7 @@ function showLoginSingle() {
     return;
   }
   
+  setDisabled(loginScreen, false);
   showSlideInstant(loginScreen);
 }
 
