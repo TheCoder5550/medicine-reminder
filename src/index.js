@@ -271,7 +271,7 @@ const hasChoosenCalendar = googleCalendar.calendarId != null;
 setDisabled(welcomeScreen, isOnboardDone);
 setDisabled(installScreen, isOnboardDone || isStandalone() || !isMobile());
 setDisabled(cameraRequestScreen, isOnboardDone);
-setDisabled(loginScreen, false && isOnboardDone/* && googleCalendar.hasAuthorizedBefore()*/);
+setDisabled(loginScreen, false);
 setDisabled(calendarScreen, isOnboardDone && hasChoosenCalendar);
 
 // if (googleCalendar.hasAuthorizedBefore()) {
